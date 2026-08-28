@@ -1,6 +1,6 @@
 categories:
-- Sequence Analysis
-- Variant Analysis
+  - Sequence Analysis
+  - Variant Analysis
 description: Alignment-free detection of internal (tandem) duplications in raw sequencing data (FLT3-ITD)
 long_description: |
   FiLT3r detects and quantifies internal duplications in raw high-throughput

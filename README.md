@@ -112,6 +112,10 @@ proxy unless `no_proxy` starts with `127.0.0.1,localhost`. `shed_update` is
 plain HTTPS and works with the normal proxy settings. When in doubt, rely on
 CI instead of local runs.
 
+CI only deploys tools that changed in the pushed commit range. If a deploy
+was missed (for example because the CI run that introduced a tool failed),
+push any commit that touches that tool's directory to trigger it again.
+
 ## Relation to tools-iuc
 
 Tools of broad general interest are still best contributed to tools-iuc

@@ -18,5 +18,5 @@ long_description: |
 remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/cutadapt_demultiplex
 type: unrestricted
 categories:
-- Fastq Manipulation
-- Sequence Analysis
+  - Fastq Manipulation
+  - Sequence Analysis

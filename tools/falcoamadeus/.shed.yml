@@ -10,8 +10,8 @@ long_description: |
   plain, gzipped and BAM input. The fastqc_data.txt output is ingestible by
   MultiQC.
 categories:
-- Sequence Analysis
-- Fastq Manipulation
+  - Sequence Analysis
+  - Fastq Manipulation
 homepage_url: https://github.com/joachimwolff/falcoAmadeus
 remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/falcoamadeus
 type: unrestricted
