@@ -3,8 +3,7 @@
 Galaxy tool wrappers maintained by the Department of Hematology, Hemostasis,
 Oncology and Stem Cell Transplantation, Hannover Medical School (MHH).
 
-This repository works like [galaxyproject/tools-iuc](https://github.com/galaxyproject/tools-iuc)
-and [bgruening/galaxytools](https://github.com/bgruening/galaxytools):
+This repository works like [galaxyproject/tools-iuc](https://github.com/galaxyproject/tools-iuc).
 
 1. Tool wrappers live in `tools/<toolname>/`, each with a `.shed.yml`.
 2. Pull requests are linted and tested by CI (planemo via
