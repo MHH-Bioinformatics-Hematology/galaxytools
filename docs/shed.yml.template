@@ -11,6 +11,6 @@ long_description: |
 # "Assembly", "Statistics", "Machine Learning"
 categories:
   - Sequence Analysis
-homepage_url: https://github.com/mhh-hematology/galaxytools
-remote_repository_url: https://github.com/mhh-hematology/galaxytools/tree/main/tools/mytool
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/mytool
 type: unrestricted

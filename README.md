@@ -17,10 +17,19 @@ and [bgruening/galaxytools](https://github.com/bgruening/galaxytools):
    via "Admin > Install and Uninstall". That is all "showing up in Galaxy by
    default" means; no further registration is needed.
 
+## Tools
+
+| Tool | Description |
+| --- | --- |
+| [falcoamadeus](tools/falcoamadeus) | falcoAmadeus, a faster, sequencing-aware FastQC-compatible QC tool (single and paired-end) |
+| [filt3r](tools/filt3r) | Alignment-free FLT3-ITD detection and quantification from raw reads |
+| [vardictcpp](tools/vardictcpp) | Fast, memory-lean C++ reimplementation of the VarDict variant caller |
+| [cutadapt_demultiplex](tools/cutadapt_demultiplex) | Paired-end combinatorial MID demultiplexing into per-sample read pairs |
+
 ## One-time setup (do once, in this order)
 
-1. **GitHub organisation and repo**: create the org `mhh-hematology` on
-   GitHub and push this repository as `mhh-hematology/galaxytools`.
+1. **GitHub repo**: the org `MHH-Bioinformatics-Hematology` already exists on
+   GitHub; push this repository as `MHH-Bioinformatics-Hematology/galaxytools`.
 
 2. **ToolShed accounts**: register the same account name on both sheds:
    - https://testtoolshed.g2.bx.psu.edu (Test ToolShed, for staging)

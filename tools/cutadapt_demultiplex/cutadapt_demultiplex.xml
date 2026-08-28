@@ -1,0 +1,232 @@
+<tool id="cutadapt_demultiplex" name="Cutadapt Demultiplex" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="@PROFILE@">
+    <description>paired-end reads using combinatorial MID barcodes</description>
+    <macros>
+        <import>macros.xml</import>
+    </macros>
+    <expand macro="edam_ontology"/>
+    <expand macro="xrefs"/>
+    <expand macro="requirements"/>
+    <version_command>cutadapt --version</version_command>
+    <command detect_errors="exit_code"><![CDATA[
+mkdir -p outputs &&
+
+## Sort every read pair into a file pair named after the barcode combination it
+## carries. Barcodes are searched at the 5' end of both mates, so a pair ends up
+## in 'temp_<forward barcode>-<reverse barcode>_R{1,2}.fastq'. Read pairs whose
+## barcode is not recognised land in an 'unknown' file that is never collected.
+cutadapt
+    -g 'file:$mids_file'
+    -G 'file:$mids_file'
+    --error-rate '$error_rate'
+    --no-indels
+    --action=trim
+    --cores \${GALAXY_SLOTS:-1}
+    -o 'temp_{name1}-{name2}_R1.fastq'
+    -p 'temp_{name1}-{name2}_R2.fastq'
+    '$input_r1'
+    '$input_r2'
+&&
+
+## Keep only the barcode combinations listed in the table and rename them after
+## their sample, so that Galaxy can discover them as a paired collection.
+python '$__tool_directory__/cutadapt_demultiplex.py'
+    '$combinations_file'
+    --prefix 'temp_'
+    --outdir 'outputs'
+    ]]></command>
+    <inputs>
+        <param name="input_r1" type="data" format="fastqsanger,fastqsanger.gz" label="Forward reads (R1)"/>
+        <param name="input_r2" type="data" format="fastqsanger,fastqsanger.gz" label="Reverse reads (R2)"/>
+        <param name="mids_file" type="data" format="fasta" label="MID sequences"
+            help="FASTA file with one entry per MID. The sequence names are used as the barcode names in the combinations table below."/>
+        <param name="combinations_file" type="data" format="tabular" label="Allowed MID combinations"
+            help="Tabular file with three columns: sample name, forward MID name, reverse MID name. A header line starting with 'Sample' is ignored."/>
+        <param argument="--error-rate" type="float" value="0.1" min="0" max="1" label="Maximum error rate"
+            help="Fraction of the MID sequence that is allowed to mismatch. The default of 0.1 allows one mismatch per ten barcode bases, 0 requires an exact match."/>
+    </inputs>
+    <outputs>
+        <collection name="demux_output" type="list:paired" label="${tool.name} on ${on_string}: demultiplexed samples">
+            <discover_datasets pattern="(?P&lt;identifier_0&gt;.+)_(?P&lt;identifier_1&gt;forward|reverse)\.fastqsanger" directory="outputs" format="fastqsanger"/>
+        </collection>
+    </outputs>
+    <tests>
+        <!-- All six multiplexed samples are recovered. The two barcode
+             combinations that occur in the reads but are absent from the table
+             are discarded. -->
+        <test expect_num_outputs="1">
+            <param name="input_r1" value="demux_R1.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="input_r2" value="demux_R2.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="mids_file" value="mids.fasta" ftype="fasta"/>
+            <param name="combinations_file" value="sample_table.tabular" ftype="tabular"/>
+            <output_collection name="demux_output" type="list:paired" count="6">
+                <element name="18">
+                    <element name="forward" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="80"/>
+                        </assert_contents>
+                    </element>
+                    <element name="reverse" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="80"/>
+                        </assert_contents>
+                    </element>
+                </element>
+                <element name="21">
+                    <element name="forward" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="80"/>
+                            <has_line line="@M03654:722:000000000-LMG45:1:1101:11262:1478 1:N:0:1"/>
+                            <!-- The MID13 barcode and the random prefix in front
+                                 of it are trimmed off, leaving the primer. -->
+                            <has_line_matching expression="^GGTAAACACAAGGGCACTGG.*"/>
+                        </assert_contents>
+                    </element>
+                    <element name="reverse" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="80"/>
+                            <has_line line="@M03654:722:000000000-LMG45:1:1101:11262:1478 2:N:0:1"/>
+                        </assert_contents>
+                    </element>
+                </element>
+            </output_collection>
+            <assert_command>
+                <has_text text="--no-indels"/>
+                <has_text text="--error-rate '0.1'"/>
+            </assert_command>
+            <assert_stdout>
+                <has_text text="6 of 6 samples were demultiplexed"/>
+            </assert_stdout>
+        </test>
+        <!-- A table listing a subset of the samples yields a smaller collection,
+             and a combination that no read pair carries is reported in the log
+             instead of failing the job or adding an empty dataset. -->
+        <test expect_num_outputs="1">
+            <param name="input_r1" value="demux_R1.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="input_r2" value="demux_R2.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="mids_file" value="mids.fasta" ftype="fasta"/>
+            <param name="combinations_file" value="sample_table_subset.tabular" ftype="tabular"/>
+            <output_collection name="demux_output" type="list:paired" count="2">
+                <element name="21">
+                    <element name="forward" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="80"/>
+                        </assert_contents>
+                    </element>
+                    <element name="reverse" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="80"/>
+                        </assert_contents>
+                    </element>
+                </element>
+            </output_collection>
+            <assert_stdout>
+                <has_text text="no read pair carried this combination"/>
+                <has_text text="2 of 3 samples were demultiplexed"/>
+            </assert_stdout>
+        </test>
+        <!-- Requiring an exact barcode match keeps all six samples but assigns
+             far fewer read pairs to each of them. -->
+        <test expect_num_outputs="1">
+            <param name="input_r1" value="demux_R1.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="input_r2" value="demux_R2.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="mids_file" value="mids.fasta" ftype="fasta"/>
+            <param name="combinations_file" value="sample_table.tabular" ftype="tabular"/>
+            <param name="error_rate" value="0"/>
+            <output_collection name="demux_output" type="list:paired" count="6">
+                <element name="21">
+                    <element name="forward" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="20"/>
+                        </assert_contents>
+                    </element>
+                    <element name="reverse" ftype="fastqsanger">
+                        <assert_contents>
+                            <has_n_lines n="20"/>
+                        </assert_contents>
+                    </element>
+                </element>
+            </output_collection>
+            <assert_command>
+                <has_text text="--error-rate '0.0'"/>
+            </assert_command>
+        </test>
+        <!-- A table whose barcode combinations occur in no read pair at all is a
+             user error and has to fail the job rather than produce an empty
+             collection. -->
+        <test expect_failure="true">
+            <param name="input_r1" value="demux_R1.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="input_r2" value="demux_R2.fastq.gz" ftype="fastqsanger.gz"/>
+            <param name="mids_file" value="mids.fasta" ftype="fasta"/>
+            <param name="combinations_file" value="sample_table_unmatched.tabular" ftype="tabular"/>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Demultiplexes paired-end reads that were multiplexed with a MID (Multiplex
+IDentifier) barcode on *both* the forward and the reverse read, and returns one
+element per sample in a paired collection.
+
+Cutadapt is run in `combinatorial demultiplexing`_ mode: every read pair is
+sorted by the pair of barcodes it carries, and the barcodes are trimmed off. A
+table of the sample/barcode combinations that were actually multiplexed is then
+used to keep the expected combinations and to name them after their sample. Read
+pairs carrying any other combination, including pairs in which a barcode was not
+recognised at all, are discarded.
+
+That last step is what distinguishes this tool from the demultiplexing mode of
+the regular **Cutadapt** tool, which demultiplexes single-end reads only. With
+*n* forward and *m* reverse barcodes, combinatorial demultiplexing produces up to
+*n* x *m* output files, and all but a handful of them are index hopping or
+sequencing noise rather than real samples.
+
+-----
+
+**Inputs**
+
+*MID sequences* is a FASTA file with one entry per barcode. The names are what
+the combinations table refers to::
+
+    >MID13
+    ^NNACGTGCAGCG
+    >MID70
+    ^NNNNNNNNTGAGTCAGTA
+
+The full `Cutadapt adapter syntax`_ is available here. In the example above
+``^`` anchors the barcode to the start of the read, and the leading ``N``
+positions match the random unique molecular identifier in front of it. Anchoring
+the barcodes is strongly recommended, because an unanchored barcode can be
+matched anywhere inside a read.
+
+*Allowed MID combinations* is a tabular file with three columns: the sample
+name, the barcode on the forward read and the barcode on the reverse read. A
+header line starting with ``Sample`` is optional and lines starting with ``#``
+are ignored::
+
+    Sample	MID1	MID2
+    patient_A	MID13	MID70
+    patient_B	MID13	MID16
+
+Sample names become collection element identifiers, so they are restricted to
+letters, digits, ``.``, ``_``, ``+`` and ``-``, and each one has to be unique.
+
+-----
+
+**Output**
+
+A paired collection with one element per sample that was found in the reads. The
+forward and reverse reads of each sample have their barcode trimmed off, which
+also removes any random prefix in front of the barcode.
+
+Samples whose barcode combination occurs in none of the read pairs are skipped
+and listed in the job log instead of being added as empty datasets. If none of
+the expected combinations is found the job fails, because that almost always
+means the barcode names in the table do not match those in the FASTA file, or
+that the error rate is too strict.
+
+.. _`combinatorial demultiplexing`: https://cutadapt.readthedocs.io/en/stable/guide.html#combinatorial-demultiplexing
+.. _`Cutadapt adapter syntax`: https://cutadapt.readthedocs.io/en/stable/guide.html#specifying-adapter-sequences
+    ]]></help>
+    <expand macro="creator"/>
+    <expand macro="citations"/>
+</tool>

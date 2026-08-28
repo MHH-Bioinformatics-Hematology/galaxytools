@@ -1,0 +1,35 @@
+<macros>
+    <token name="@TOOL_VERSION@">5.2</token>
+    <token name="@VERSION_SUFFIX@">0</token>
+    <token name="@PROFILE@">25.0</token>
+    <xml name="creator">
+        <creator>
+            <person givenName="Joachim" familyName="Wolff"/>
+        </creator>
+    </xml>
+    <xml name="requirements">
+        <requirements>
+            <requirement type="package" version="@TOOL_VERSION@">cutadapt</requirement>
+        </requirements>
+    </xml>
+    <xml name="xrefs">
+        <xrefs>
+            <xref type="bio.tools">cutadapt</xref>
+        </xrefs>
+    </xml>
+    <xml name="edam_ontology">
+        <edam_topics>
+            <edam_topic>topic_0632</edam_topic>
+            <edam_topic>topic_3168</edam_topic>
+        </edam_topics>
+        <edam_operations>
+            <edam_operation>operation_0231</edam_operation>
+            <edam_operation>operation_3192</edam_operation>
+        </edam_operations>
+    </xml>
+    <xml name="citations">
+        <citations>
+            <citation type="doi">10.14806/ej.17.1.200</citation>
+        </citations>
+    </xml>
+</macros>

@@ -290,7 +290,7 @@ jobs:
   deploy:
     name: Deploy
     needs: [setup, lint, combine_outputs]
-    if: ${{ github.ref == 'refs/heads/main' && github.repository_owner == 'mhh-hematology' }}
+    if: ${{ github.ref == 'refs/heads/main' && github.repository_owner == 'MHH-Bioinformatics-Hematology' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:

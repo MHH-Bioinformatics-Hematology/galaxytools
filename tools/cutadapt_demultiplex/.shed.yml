@@ -1,0 +1,22 @@
+name: cutadapt_demultiplex
+owner: mhh-hematology
+description: Demultiplex paired-end reads into per-sample read pairs using combinatorial MID barcodes
+homepage_url: https://cutadapt.readthedocs.io/
+long_description: |
+    Demultiplexes paired-end sequencing data with Cutadapt using MID (Multiplex IDentifier)
+    barcodes that are present on both the forward and the reverse read.
+
+    Cutadapt is run in combinatorial demultiplexing mode, which sorts each read pair by the
+    pair of barcodes it carries. A user-supplied table of allowed sample/barcode combinations
+    is then used to keep only the expected combinations and to name them after the sample they
+    belong to. Read pairs carrying an unexpected barcode combination are discarded.
+
+    The result is a paired collection with one element per sample, ready to be used by
+    downstream paired-end tools.
+
+    http://dx.doi.org/10.14806/ej.17.1.200
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/cutadapt_demultiplex
+type: unrestricted
+categories:
+- Fastq Manipulation
+- Sequence Analysis

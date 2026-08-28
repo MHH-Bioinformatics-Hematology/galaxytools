@@ -1,0 +1,361 @@
+<tool id="falcoamadeus" name="falcoAmadeus" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="23.2">
+    <description>Sequencing-aware, FastQC-compatible quality control with correct paired-end analysis</description>
+    <macros>
+        <token name="@TOOL_VERSION@">3</token>
+        <token name="@VERSION_SUFFIX@">0</token>
+    </macros>
+    <requirements>
+        <requirement type="package" version="@TOOL_VERSION@">falcoamadeus</requirement>
+    </requirements>
+    <command detect_errors="aggressive"><![CDATA[
+#import re
+#if str($mode.mode_select) == 'single'
+    #set input_name_sl = re.sub('[^\w\-\s]', '_', str($mode.input_file.element_identifier))
+    #if 'bam' in $mode.input_file.ext
+        #set format = 'bam'
+    #elif 'sam' in $mode.input_file.ext
+        #set format = 'sam'
+    #elif str($mode.input_file.ext).endswith('.gz')
+        #set format = 'fastq.gz'
+    #else
+        #set format = 'fastq'
+    #end if
+    ln -s '${mode.input_file}' '${input_name_sl}' &&
+#else
+    #set sample_name = re.sub('[^\w\-]', '_', str($mode.input_pair.name or 'sample')) or 'sample'
+    #set fwd_gz = str($mode.input_pair.forward.ext).endswith('.gz')
+    #set rev_gz = str($mode.input_pair.reverse.ext).endswith('.gz')
+    #if $fwd_gz
+        #set r1 = 'r1.fastq.gz'
+    #else
+        #set r1 = 'r1.fastq'
+    #end if
+    ln -s '${mode.input_pair.forward}' '${r1}' &&
+    ## falcoAmadeus 3 aborts on an uncompressed R1 combined with a gzipped R2,
+    ## so that one mate combination is normalised by decompressing R2.
+    #if $rev_gz and not $fwd_gz
+        #set r2 = 'r2.fastq'
+        gzip -cd '${mode.input_pair.reverse}' > '${r2}' &&
+    #elif $rev_gz
+        #set r2 = 'r2.fastq.gz'
+        ln -s '${mode.input_pair.reverse}' '${r2}' &&
+    #else
+        #set r2 = 'r2.fastq'
+        ln -s '${mode.input_pair.reverse}' '${r2}' &&
+    #end if
+#end if
+mkdir out &&
+falcoAmadeus
+--outdir out
+--threads \${GALAXY_SLOTS:-1}
+--quiet
+#if $contaminants
+    --contaminants '${contaminants}'
+#end if
+#if $adapters
+    --adapters '${adapters}'
+#end if
+#if $limits
+    --limits '${limits}'
+#end if
+$nogroup
+#if str($assay) != 'generic'
+    --assay '${assay}'
+    #if str($assay) in ('wgbs', 'emseq', 'rrbs')
+        -conversion-residual $conversion_residual
+    #end if
+#end if
+#if $subsample > 1
+    -subsample $subsample
+#end if
+$bisulfite
+$reverse_complement
+#if str($mode.mode_select) == 'single'
+    $mode.generate_summary
+    -f '${format}'
+    '${input_name_sl}'
+#else
+    --name '${sample_name}'
+    --paired-data '${mode.paired_data}'
+    --paired-with '${r2}'
+    '${r1}'
+    #if str($mode.paired_data) != 'combined'
+        && mv out/'${sample_name}'_forward/fastqc_data.txt out/forward_fastqc_data.txt
+        && mv out/'${sample_name}'_reverse/fastqc_data.txt out/reverse_fastqc_data.txt
+    #end if
+#end if
+    ]]></command>
+    <inputs>
+        <conditional name="mode">
+            <param name="mode_select" type="select" label="Input type" help="Paired mode analyses a forward/reverse pair together: in addition to the usual per-mate analysis it runs a lockstep pass over both mates and reports a corrected paired-end PCR-duplication rate (a pair only counts as a duplicate when BOTH mates match).">
+                <option value="single" selected="true">Single dataset (or a list to map per element)</option>
+                <option value="paired">Paired collection (forward/reverse; one run per pair)</option>
+            </param>
+            <when value="single">
+                <param name="input_file" type="data" format="fastq,fastq.gz,bam,sam" label="Raw read data from your current history"/>
+                <param name="generate_summary" type="boolean" truevalue="" falsevalue="-skip-summary" checked="false" label="Generate summary output of QC test results"/>
+            </when>
+            <when value="paired">
+                <param name="input_pair" type="data_collection" collection_type="paired" format="fastq,fastq.gz" label="Paired reads" help="A paired (forward/reverse) collection analysed as one sample, or a list:paired to analyse each pair independently. SAM/BAM input is not supported in paired mode."/>
+                <param argument="--paired-data" type="select" label="Per-sample raw data (fastqc_data.txt) to keep" help="'Separate mates' reports forward and reverse separately (two MultiQC samples per pair); 'Combined' pools R1+R2 into a single report (one MultiQC sample per pair); 'Both' keeps all three. The combined HTML report and the paired duplication report are produced either way.">
+                    <option value="mates" selected="true">Separate mates (forward + reverse)</option>
+                    <option value="combined">Combined (pooled R1+R2)</option>
+                    <option value="both">Both</option>
+                </param>
+            </when>
+        </conditional>
+        <param argument="--assay" type="select" label="Assay / library type for pass/warn/fail grading" help="FastQC-style grading assumes whole-genome shotgun data and mis-flags expected assay biology (e.g. amplicon duplication, RNA-seq GC bias) as failures. Selecting the assay relaxes ONLY the affected modules; the reported data are unchanged, only the grades and explanatory #Assay comments differ. 'generic' is byte-identical to stock falco. wgbs/emseq/rrbs imply bisulfite handling.">
+            <option value="generic" selected="true">generic (FastQC/falco behaviour)</option>
+            <option value="wgs">wgs</option>
+            <option value="exome">exome</option>
+            <option value="amplicon">amplicon</option>
+            <option value="16s">16s</option>
+            <option value="rnaseq">rnaseq</option>
+            <option value="smallrna">smallrna</option>
+            <option value="atac">atac</option>
+            <option value="chipseq">chipseq</option>
+            <option value="wgbs">wgbs</option>
+            <option value="emseq">emseq</option>
+            <option value="rrbs">rrbs</option>
+        </param>
+        <param argument="-conversion-residual" type="float" value="0.05" min="0" max="1" label="Incomplete-conversion warning threshold (methylation assays only)" help="Residual unmethylated-base fraction above which a possible incomplete-conversion warning is emitted. Only used with assay wgbs/emseq/rrbs; heuristic only, the authoritative check is the post-alignment non-CpG conversion rate."/>
+        <param name="contaminants" type="data" format="tabular" optional="true" label="Contaminant list" help="Tab-delimited file with 2 columns: name and sequence. For example: Illumina Small RNA RT Primer&#x9;CAAGCAGAAGACGGCATACGA"/>
+        <param argument="--adapters" type="data" format="tabular" optional="true" label="Adapter list" help="List of adapter sequences which will be explicitly searched against the library. Tab-delimited file with 2 columns: name and sequence."/>
+        <param name="limits" type="data" format="txt" optional="true" label="Submodule and limit specifying file" help="A file that specifies which submodules are to be executed (default=all) and the thresholds for each submodule's warning parameter."/>
+        <param argument="--nogroup" type="boolean" truevalue="--nogroup" falsevalue="" checked="false" label="Disable grouping of bases for reads &gt;50bp" help="Using this option, your plots may end up a ridiculous size. You have been warned!"/>
+        <param argument="-subsample" type="integer" value="1" min="1" label="Subsampling factor" help="Makes the run faster (but possibly less accurate) by only processing reads whose index is a multiple of this value (0-based)."/>
+        <param argument="-bisulfite" type="boolean" truevalue="-bisulfite" falsevalue="" checked="false" label="Bisulfite sequencing" help="Reads are from whole genome bisulfite sequencing: the expected increase in Ts and decrease in Cs is accounted for in the base content module. Selecting assay wgbs/emseq/rrbs enables this automatically."/>
+        <param name="reverse_complement" type="boolean" truevalue="-reverse-complement" falsevalue="" checked="false" label="Reverse complement" help="The input is reverse-complemented; all modules are tested by swapping A/T and C/G."/>
+    </inputs>
+    <outputs>
+        <data format="html" name="html_file" from_work_dir="out/falcoAmadeus_report.html" label="${tool.name} on ${on_string}: Webpage"/>
+        <data format="txt" name="text_file" from_work_dir="out/fastqc_data.txt" label="${tool.name} on ${on_string}: RawData">
+            <filter>mode['mode_select'] == 'single' or mode['paired_data'] != 'mates'</filter>
+        </data>
+        <data format="txt" name="forward_data" from_work_dir="out/forward_fastqc_data.txt" label="${tool.name} on ${on_string}: RawData forward">
+            <filter>mode['mode_select'] == 'paired' and mode['paired_data'] != 'combined'</filter>
+        </data>
+        <data format="txt" name="reverse_data" from_work_dir="out/reverse_fastqc_data.txt" label="${tool.name} on ${on_string}: RawData reverse">
+            <filter>mode['mode_select'] == 'paired' and mode['paired_data'] != 'combined'</filter>
+        </data>
+        <data format="txt" name="paired_dup" from_work_dir="out/paired_duplication.txt" label="${tool.name} on ${on_string}: Paired duplication">
+            <filter>mode['mode_select'] == 'paired'</filter>
+        </data>
+        <data format="txt" name="summary_file" from_work_dir="out/summary.txt" label="${tool.name} on ${on_string}: SummaryData">
+            <filter>mode['mode_select'] == 'single' and mode['generate_summary']</filter>
+        </data>
+    </outputs>
+    <tests>
+        <!-- Single-end FASTQ, defaults -->
+        <test expect_num_outputs="2">
+            <conditional name="mode">
+                <param name="mode_select" value="single"/>
+                <param name="input_file" value="1000trimmed.fastq"/>
+            </conditional>
+            <output name="html_file" ftype="html">
+                <assert_contents>
+                    <has_line_matching expression="\s*1000trimmed_fastq - report"/>
+                </assert_contents>
+            </output>
+            <!-- two lines diff to allow for reported version to change -->
+            <output name="text_file" file="fastqc_data.txt" ftype="txt" lines_diff="2"/>
+        </test>
+        <!-- Single-end gzipped FASTQ with nogroup -->
+        <test expect_num_outputs="2">
+            <conditional name="mode">
+                <param name="mode_select" value="single"/>
+                <param name="input_file" value="1000trimmed.fastq.gz"/>
+            </conditional>
+            <param name="nogroup" value="true"/>
+            <output name="html_file" ftype="html">
+                <assert_contents>
+                    <has_line_matching expression="\s*1000trimmed_fastq_gz - report"/>
+                </assert_contents>
+            </output>
+            <output name="text_file" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total Sequences&#009;4905"/>
+                </assert_contents>
+            </output>
+            <assert_command>
+                <has_text text="--nogroup"/>
+            </assert_command>
+        </test>
+        <!-- BAM input -->
+        <test expect_num_outputs="2">
+            <conditional name="mode">
+                <param name="mode_select" value="single"/>
+                <param name="input_file" value="hisat_output_1.bam"/>
+            </conditional>
+            <output name="html_file" ftype="html">
+                <assert_contents>
+                    <has_line_matching expression="\s*hisat_output_1_bam - report"/>
+                </assert_contents>
+            </output>
+            <output name="text_file" file="fastqc_data_bam.txt" ftype="txt" lines_diff="2"/>
+        </test>
+        <!-- Summary output -->
+        <test expect_num_outputs="3">
+            <conditional name="mode">
+                <param name="mode_select" value="single"/>
+                <param name="input_file" value="1000trimmed.fastq"/>
+                <param name="generate_summary" value="true"/>
+            </conditional>
+            <output name="summary_file" file="summary.txt" ftype="txt"/>
+        </test>
+        <!-- Assay-aware grading: amplicon relaxes the affected modules -->
+        <test expect_num_outputs="3">
+            <conditional name="mode">
+                <param name="mode_select" value="single"/>
+                <param name="input_file" value="1000trimmed.fastq"/>
+                <param name="generate_summary" value="true"/>
+            </conditional>
+            <param name="assay" value="amplicon"/>
+            <output name="summary_file" file="summary_amplicon.txt" ftype="txt"/>
+            <output name="text_file" ftype="txt">
+                <assert_contents>
+                    <has_text text="#Assay"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- Custom contaminants, adapters and limits -->
+        <test expect_num_outputs="3">
+            <conditional name="mode">
+                <param name="mode_select" value="single"/>
+                <param name="input_file" value="1000trimmed.fastq"/>
+                <param name="generate_summary" value="true"/>
+            </conditional>
+            <param name="contaminants" value="contaminant_list.txt" ftype="tabular"/>
+            <param name="adapters" value="adapter_list.txt" ftype="tabular"/>
+            <param name="limits" value="limits.txt" ftype="txt"/>
+            <output name="summary_file" file="summary_custom.txt" ftype="txt"/>
+        </test>
+        <!-- Paired collection, separate mates (default) -->
+        <test expect_num_outputs="4">
+            <conditional name="mode">
+                <param name="mode_select" value="paired"/>
+                <param name="input_pair">
+                    <collection type="paired">
+                        <element name="forward" value="1000trimmed.fastq" ftype="fastqsanger"/>
+                        <element name="reverse" value="1000trimmed.fastq" ftype="fastqsanger"/>
+                    </collection>
+                </param>
+            </conditional>
+            <output name="html_file" ftype="html">
+                <assert_contents>
+                    <has_text text="(combined) - report"/>
+                </assert_contents>
+            </output>
+            <output name="forward_data" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total Sequences&#009;4905"/>
+                </assert_contents>
+            </output>
+            <output name="reverse_data" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total Sequences&#009;4905"/>
+                </assert_contents>
+            </output>
+            <output name="paired_dup" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total read pairs&#009;4905"/>
+                    <has_text text="Paired-end (correct)&#009;1.26402"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- Paired collection, combined report only -->
+        <test expect_num_outputs="3">
+            <conditional name="mode">
+                <param name="mode_select" value="paired"/>
+                <param name="input_pair">
+                    <collection type="paired">
+                        <element name="forward" value="1000trimmed.fastq" ftype="fastqsanger"/>
+                        <element name="reverse" value="1000trimmed.fastq" ftype="fastqsanger"/>
+                    </collection>
+                </param>
+                <param name="paired_data" value="combined"/>
+            </conditional>
+            <output name="text_file" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total Sequences&#009;9810"/>
+                </assert_contents>
+            </output>
+            <output name="paired_dup" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total read pairs&#009;4905"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- Paired collection with mixed compression (plain forward, gzipped
+             reverse): exercises the decompression workaround -->
+        <test expect_num_outputs="4">
+            <conditional name="mode">
+                <param name="mode_select" value="paired"/>
+                <param name="input_pair">
+                    <collection type="paired">
+                        <element name="forward" value="1000trimmed.fastq" ftype="fastqsanger"/>
+                        <element name="reverse" value="1000trimmed.fastq.gz" ftype="fastqsanger.gz"/>
+                    </collection>
+                </param>
+            </conditional>
+            <output name="forward_data" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total Sequences&#009;4905"/>
+                </assert_contents>
+            </output>
+            <output name="paired_dup" ftype="txt">
+                <assert_contents>
+                    <has_text text="Total read pairs&#009;4905"/>
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+falcoAmadeus_ is a performance-focused, sequencing-aware fork of falco (itself a
+fast C++ reimplementation of FastQC) for quality control of sequencing data.
+Its default single-end output is byte-identical to falco, and the
+``fastqc_data.txt`` raw data output is ingestible by MultiQC as a FastQC report.
+
+On top of the falco/FastQC feature set it adds:
+
+- **Correct paired-end analysis**: forward and reverse mates are analysed
+  together in one run. Besides the usual per-mate reports, a lockstep pass over
+  both mates writes a paired duplication report in which a read pair only
+  counts as a PCR duplicate when *both* mates match, avoiding the systematic
+  overcounting of naive single-end deduplication. A combined HTML report covers
+  forward, reverse and pooled data.
+- **Assay-aware grading**: FastQC-style pass/warn/fail grading assumes
+  whole-genome shotgun data and mis-flags expected assay biology (amplicon
+  duplication, RNA-seq GC bias, small RNA length distributions, bisulfite base
+  content) as failures. Selecting the assay/library type relaxes only the
+  affected modules; the reported data are unchanged, only the grades plus
+  explanatory ``#Assay`` comments differ.
+- **Multi-threaded parsing** of plain, gzipped and BAM input, with output
+  byte-identical to a single-threaded run.
+
+**Inputs and outputs**
+
+Single mode accepts FASTQ, FASTQ.gz, SAM or BAM datasets (or a list collection
+to map over). Paired mode accepts a paired (or list:paired) collection of
+FASTQ/FASTQ.gz datasets.
+
+The tool produces an HTML report and the FastQC-compatible raw data text file
+containing Basic Statistics, per-base/per-sequence quality, base and GC
+content, N content, length distribution, duplication levels, overrepresented
+sequences and adapter content. In paired mode the paired duplication report and
+(optionally) per-mate and/or pooled raw data files are produced as well.
+
+Optionally, custom contaminant, adapter and limits files can be supplied, in
+the same formats FastQC and falco use.
+
+.. _falcoAmadeus: https://github.com/joachimwolff/falcoAmadeus
+    ]]></help>
+    <creator>
+        <person givenName="Joachim" familyName="Wolff" url="https://github.com/joachimwolff" identifier="https://orcid.org/0000-0001-9985-955X"/>
+    </creator>
+    <citations>
+        <citation type="doi">10.12688/f1000research.21142.2</citation>
+    </citations>
+</tool>

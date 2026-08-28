@@ -1,0 +1,17 @@
+name: falcoamadeus
+owner: mhh-hematology
+description: falcoAmadeus, a faster, sequencing-aware FastQC-compatible quality control tool
+long_description: |
+  falcoAmadeus is a performance-focused, sequencing-aware fork of falco (a fast
+  C++ reimplementation of FastQC). Default single-end output is byte-identical
+  to falco; opt-in features add correct paired-end analysis (a combined report
+  plus a corrected paired PCR-duplicate rate), assay-aware pass/warn/fail
+  grading, a redesigned interactive HTML report, and multi-threaded parsing of
+  plain, gzipped and BAM input. The fastqc_data.txt output is ingestible by
+  MultiQC.
+categories:
+- Sequence Analysis
+- Fastq Manipulation
+homepage_url: https://github.com/joachimwolff/falcoAmadeus
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/falcoamadeus
+type: unrestricted
