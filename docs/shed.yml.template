@@ -1,0 +1,16 @@
+# Copy to tools/<toolname>/.shed.yml and fill in.
+# `name` + `owner` identify the repository in the ToolShed; the repository is
+# created automatically on first deployment from the main branch.
+name: mytool
+owner: mhh-hematology
+description: One short line, shown in ToolShed search results
+long_description: |
+  A longer description of what the tool does. Plain text.
+# Categories must already exist in the ToolShed; commonly used ones:
+# "Sequence Analysis", "Variant Analysis", "Fastq Manipulation", "SAM/BAM",
+# "Assembly", "Statistics", "Machine Learning"
+categories:
+  - Sequence Analysis
+homepage_url: https://github.com/mhh-hematology/galaxytools
+remote_repository_url: https://github.com/mhh-hematology/galaxytools/tree/main/tools/mytool
+type: unrestricted

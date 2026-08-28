@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.planemo/
+tool_test_output.html
+tool_test_output.json
+shed_upload.tar.gz
+*.swp
