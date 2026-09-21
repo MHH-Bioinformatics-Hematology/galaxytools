@@ -1,0 +1,22 @@
+<macros>
+    <token name="@TOOL_VERSION@">1</token>
+    <token name="@VERSION_SUFFIX@">0</token>
+    <token name="@PROFILE@">23.0</token>
+    <xml name="requirements">
+        <requirements>
+            <requirement type="package" version="@TOOL_VERSION@">qpcrpredict</requirement>
+        </requirements>
+    </xml>
+    <xml name="citations">
+        <citations>
+            <citation type="bibtex"><![CDATA[
+@misc{qpcrpredict,
+  author = {Wolff, Joachim},
+  title  = {qpcrpredict: trained positive/negative calls from raw real-time PCR run files},
+  year   = {2026},
+  url    = {https://github.com/MHH-Bioinformatics-Hematology/qpcrpredict}
+}
+            ]]></citation>
+        </citations>
+    </xml>
+</macros>

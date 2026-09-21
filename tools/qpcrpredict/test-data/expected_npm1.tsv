@@ -1,0 +1,2 @@
+sample	target	family	run_date	decision	redo	review	model_call	ml_prob	quality	ref_qty_mean	r2_target	r2_ref	tg_ct_mean	tg_n_below_cutoff	ratio	reason	review_reason	annotation	recommendation
+SAMPLE1	NPM1	NPM1	2019-03-11	positive	False	False	positive	1.0	sufficient	50000.0	1.0	1.0	22.0	3	20000.0				
