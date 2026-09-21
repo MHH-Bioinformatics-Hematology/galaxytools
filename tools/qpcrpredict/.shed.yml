@@ -10,8 +10,8 @@ long_description: |
   from the run file: the shape of the amplification curves and the Ct and quantity of the target
   and its reference gene. A quality and review gate turns runs that cannot be evaluated into an
   explicit 'na' (repeat) decision and borderline cases into a 'review' flag for human
-  classification. Everything assay-specific (targets, reference gene, control names, thresholds)
-  is defined in an assay configuration. A model for AML molecular MRD (mutated NPM1,
+  classification. Targets, reference gene, control names and thresholds
+  are defined in an assay configuration. A model for AML molecular MRD (mutated NPM1,
   RUNX1::RUNX1T1, CBFB::MYH11, PML::RARA, BCR::ABL1, normalised to ABL1) ships with the tool, and a
   user-trained model bundle can be supplied instead.
 homepage_url: https://github.com/MHH-Bioinformatics-Hematology/qpcrpredict
