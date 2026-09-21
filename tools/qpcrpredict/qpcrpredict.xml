@@ -18,8 +18,9 @@ qpcrpredict predict
 #if str($model_source.source) == 'history'
     --model '$model_source.model'
 #end if
-## TabPFN models are licensed for non-commercial, non-hosted use only and are refused in Galaxy
-    --disallow-family tabpfn
+## TabPFN models are licensed for non-commercial use and not for hosted services. They are refused
+## unless the server operator has set QPCRPREDICT_ALLOW_TABPFN=1 in the job environment.
+    \$( [ "\${QPCRPREDICT_ALLOW_TABPFN:-0}" = "1" ] || echo '--disallow-family tabpfn' )
 #if str($sample).strip() != ''
     --sample '$sample'
 #end if
@@ -67,7 +68,7 @@ qpcrpredict predict
             <when value="builtin"/>
             <when value="history">
                 <param name="model" type="data" format="data" label="Trained model bundle (.pkl)"
-                       help="Model bundles are pickle files. Only use bundles from a source you trust. Bundles of the TabPFN families are refused, see the help below."/>
+                       help="Model bundles are pickle files. Only use bundles from a source you trust. Bundles of the TabPFN families are refused unless the server operator has enabled them, see the help below."/>
             </when>
         </conditional>
         <param name="sample" type="text" value="" optional="true" label="Single sample (optional)"
@@ -119,7 +120,7 @@ qpcrpredict predict
                 </assert_contents>
             </output>
         </test>
-        <!-- a bundle of a TabPFN family is refused -->
+        <!-- a bundle of a TabPFN family is refused by default -->
         <test expect_failure="true">
             <param name="run" value="synthetic_run.eds" ftype="binary"/>
             <conditional name="assay_source">
@@ -181,13 +182,22 @@ call and probability of the model, the material quality, the key readouts (targe
 copies, standard-curve R2, target/reference ratio) and the reason and recommendation for every
 deferred sample.
 
-**TabPFN models are excluded**
+**TabPFN models need to be enabled by the server operator**
 
 ``qpcrpredict`` can train models of the TabPFN families on the command line. The pretrained TabPFN
 models are licensed by Prior Labs GmbH for non-commercial use only, and their license does not
-permit offering them as part of a hosted service without a commercial license. A Galaxy server is
-such a service, so this tool refuses model bundles of the TabPFN families. All other model
-families can be used.
+permit making them available as part of a hosted service without a commercial license. Whether
+this applies to a Galaxy server is a decision of its operator, who is the licensee of the TabPFN
+weights on that server. By default this tool therefore refuses model bundles of the TabPFN
+families. All other model families can be used.
+
+An operator who is entitled to run TabPFN models, for example on an in-house server used for
+non-commercial research or with a commercial license, enables them by setting the environment
+variable ``QPCRPREDICT_ALLOW_TABPFN=1`` for this tool in the Galaxy job configuration::
+
+    <destination id="qpcrpredict_tabpfn" runner="local">
+        <env id="QPCRPREDICT_ALLOW_TABPFN">1</env>
+    </destination>
 
 **Note**
 
