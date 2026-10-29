@@ -1,0 +1,90 @@
+<tool id="qpcrpredict_report" name="qpcrpredict report" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="@PROFILE@">
+    <description>HTML report from one or more qpcrpredict prediction tables</description>
+    <macros>
+        <import>macros.xml</import>
+    </macros>
+    <expand macro="requirements"/>
+    <command detect_errors="exit_code"><![CDATA[
+#for $i, $t in enumerate($tables)
+    ln -s '$t' 'table_${i}.tsv' &&
+#end for
+#for $r in $runs
+    ln -s '$r' '$r.element_identifier' &&
+#end for
+qpcrpredict report
+#for $i, $t in enumerate($tables)
+    'table_${i}.tsv'
+#end for
+#for $r in $runs
+    --run '$r.element_identifier'
+#end for
+#if str($title).strip() != ''
+    --title '$title'
+#end if
+#if str($assay_source.source) == 'history'
+    --assay '$assay_source.assay'
+#end if
+    --out '$html'
+    ]]></command>
+    <inputs>
+        <param name="tables" type="data" format="tabular" multiple="true" label="Prediction tables"
+               help="One or more outputs of the qpcrpredict tool. They are merged into one report; each keeps its run."/>
+        <param name="runs" type="data" format="binary,zip" multiple="true" optional="true" label="Run files (optional)"
+               help="The .eds or RDML files the tables were computed from. When given, the report shows the amplification curves of every sample. A run file is matched to its table by the file name it had when the prediction was made, so upload the same files."/>
+        <conditional name="assay_source">
+            <param name="source" type="select" label="Assay" help="The assay configuration used to read the run files for the curves.">
+                <option value="packaged" selected="true">Built-in assay: AML molecular MRD (reference ABL1)</option>
+                <option value="history">Assay configuration from history</option>
+            </param>
+            <when value="packaged"/>
+            <when value="history">
+                <param name="assay" type="data" format="json" label="Assay configuration (JSON)"/>
+            </when>
+        </conditional>
+        <param name="title" type="text" value="" optional="true" label="Report title" help="For example the batch or run name.">
+            <sanitizer invalid_char="">
+                <valid initial="string.printable">
+                    <remove value="&apos;"/>
+                </valid>
+            </sanitizer>
+        </param>
+    </inputs>
+    <outputs>
+        <data name="html" format="html" label="${tool.name} on ${on_string}"/>
+    </outputs>
+    <tests>
+        <test expect_num_outputs="1">
+            <param name="tables" value="predictions_synthetic.tsv" ftype="tabular"/>
+            <param name="runs" value="synthetic_run.eds" ftype="binary"/>
+            <param name="title" value="Test batch"/>
+            <output name="html">
+                <assert_contents>
+                    <has_text text="Test batch"/>
+                    <has_text text="SAMPLE1"/>
+                    <has_text text="qpcr-data"/>
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Writes one self-contained HTML page from one or more prediction tables of the ``qpcrpredict``
+tool: an overview of the calls, one section per run with the call, probability, Ct, reference
+copies, ratio and reasons of every analysis, and, when the run files are given, the amplification
+curves of the target and reference wells of every sample. Filters, search, sorting, font size and
+a light or dark theme are built into the page; it needs no network access.
+
+**Inputs**
+
+* *Prediction tables* - one or more outputs of ``qpcrpredict``.
+* *Run files* (optional) - the ``.eds`` or RDML files the tables were computed from, for the curves.
+* *Assay* - the configuration used to read the run files.
+* *Report title* - shown in the header.
+
+**Output**
+
+An HTML file. Open it in the browser from the history.
+    ]]></help>
+    <expand macro="citations"/>
+</tool>

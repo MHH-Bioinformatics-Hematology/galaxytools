@@ -82,7 +82,7 @@ qpcrpredict predict
             <param name="model" value="synthetic_model.pkl"/>
             <output name="predictions">
                 <assert_contents>
-                    <has_n_columns n="21"/>
+                    <has_n_columns n="22"/>
                     <has_text text="ref_qty_mean"/>
                     <has_line_matching expression="^SAMPLE1\tNPM1\tNPM1\t.*\tpositive\t.*"/>
                 </assert_contents>
