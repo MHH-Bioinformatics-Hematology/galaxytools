@@ -1,0 +1,16 @@
+name: mrd_html_report
+owner: mhh-hematology
+categories:
+  - Visualization
+description: Interactive HTML report of an MRD run, grouped by patient
+long_description: |
+  Turns the final report table of the MHH MRD (measurable residual disease) Galaxy workflow into one
+  self-contained HTML file. The Results view shows the decision per sample, grouped by patient
+  (H number), with a colour code and the reason for every sample that is not green (physician
+  review, failed QC criterion, not processed), the decision QC, the comparison of the analyses with
+  and without quality cutoffs, charts and a sortable table of all columns. The Wet-lab QC view shows
+  the read funnel, read-family sizes and a verdict per sample (OK, Check, Repeat) and per primer.
+  Optional inputs add the sample-table corrections and fill in the patient of samples the workflow lost.
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/mrd_html_report
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/mrd_html_report
+type: unrestricted

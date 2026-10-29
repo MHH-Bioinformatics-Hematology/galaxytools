@@ -1,0 +1,169 @@
+<tool id="mrd_html_report" name="MRD HTML report" version="0.1" profile="22.05">
+    <description>interactive report of an MRD run, grouped by patient</description>
+    <requirements>
+        <requirement type="package" version="3.12">python</requirement>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+python3 '$__tool_directory__/mrd_html_report.py'
+    '$report'
+#if $corrections
+    --corrections '$corrections'
+#end if
+#if $sample_table
+    --sample-table '$sample_table'
+#end if
+    --title '$run_name'
+    --workflow '$workflow_name'
+    --wetlab-min-mapped '$wetlab.min_mapped'
+    --wetlab-min-on-target '$wetlab.min_on_target'
+    --wetlab-min-quality '$wetlab.min_quality'
+    --wetlab-min-families '$wetlab.min_families'
+    --output '$html'
+    ]]></command>
+    <inputs>
+        <param name="report" type="data" format="tabular" label="Final MRD report table"
+               help="The tab-separated report of the MRD workflow ('Read families' output), one row per sample, with header line."/>
+        <param name="sample_table" type="data" format="csv" optional="true" label="Sample table"
+               help="Optional. Fills in H number, primer and marker of samples that the workflow lost, so that every sample appears under its patient."/>
+        <param name="corrections" type="data" format="csv" optional="true" label="Sample table corrections"
+               help="Optional. The 'Sample table corrections' output of the workflow; shown as a separate box in the report."/>
+        <param name="run_name" type="text" value="" label="Run name" help="Shown in the report header, e.g. MRD2026-034.">
+            <sanitizer invalid_char="">
+                <valid initial="string.printable">
+                    <remove value="&apos;"/>
+                </valid>
+            </sanitizer>
+        </param>
+        <param name="workflow_name" type="text" value="" label="Workflow name and version" help="Shown in the report header, e.g. MRD workflow fall 2026 v25.">
+            <sanitizer invalid_char="">
+                <valid initial="string.printable">
+                    <remove value="&apos;"/>
+                </valid>
+            </sanitizer>
+        </param>
+        <section name="wetlab" title="Wet-lab verdict" expanded="false" help="Limits for the wet-lab verdict (information for the lab; they do not change any result).">
+            <param name="min_mapped" type="float" value="0.5" min="0" max="1" label="Minimum mapped / all reads" help="Below: much of the sequencing output does not map (adapter or primer dimers, contamination)."/>
+            <param name="min_on_target" type="float" value="0.5" min="0" max="1" label="Minimum reads at the target site / mapped reads" help="Below: the primers amplify off target."/>
+            <param name="min_quality" type="float" value="0.5" min="0" max="1" label="Minimum reads passing the quality filter / all reads" help="Below: low sequencing quality."/>
+            <param name="min_families" type="float" value="0.1" min="0" max="1" label="Minimum read families / all reads" help="Below: few distinct molecules (low DNA input or over-amplification)."/>
+        </section>
+    </inputs>
+    <outputs>
+        <data name="html" format="html" label="${tool.name} on ${on_string}"/>
+    </outputs>
+    <tests>
+        <test expect_num_outputs="1">
+            <param name="report" value="report.tabular"/>
+            <param name="sample_table" value="sample_table.csv"/>
+            <param name="corrections" value="corrections.csv"/>
+            <param name="run_name" value="TESTRUN-001"/>
+            <param name="workflow_name" value="MRD workflow test"/>
+            <output name="html" ftype="html">
+                <assert_contents>
+                    <has_text text="&lt;title&gt;MRD report&lt;/title&gt;"/>
+                    <has_text text="TESTRUN-001 | MRD workflow test"/>
+                    <has_text text="H00TEST0002"/>
+                    <!-- the lost sample 4 gets its H number from the sample table -->
+                    <has_text text="H00TEST0003"/>
+                    <has_text text="Found only without quality cutoffs"/>
+                    <has_text text="&quot;corrections&quot;: [[&quot;4&quot;, &quot;DNAPosition&quot;, &quot;c34G&gt;A&quot;, &quot;c.34G&gt;A&quot;]]"/>
+                    <not_has_text text="__DATA__"/>
+                    <not_has_text text="https://"/>
+                </assert_contents>
+            </output>
+        </test>
+        <test expect_num_outputs="1">
+            <!-- report table only -->
+            <param name="report" value="report.tabular"/>
+            <output name="html" ftype="html">
+                <assert_contents>
+                    <has_text text="H00TEST0001"/>
+                    <has_text text="&quot;corrections&quot;: []"/>
+                    <not_has_text text="H00TEST0003"/>
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+The report has two tabs.
+
+- *Results*: the decision per sample, grouped by patient, with the **decision QC** for the
+  physician. It uses only the reads that count for the marker (UMI read families at the target
+  site, mapping and base quality), however many reads were sequenced in total.
+- *Wet-lab QC*: did sequencing, primers and library work? All sequenced reads against mapped
+  reads, reads at the target site, the quality filter and read families, with a verdict per
+  sample (OK / Check) and per primer. Information for the lab; it does not change any result.
+
+The tabs and the menu entries show one section at a time in the centre panel (a patient in the menu:
+that patient only); search and filters show the matching patients. Tables scroll inside their box with
+the column headers fixed; A-, A and A+ in the header change the font size of the whole report.
+
+Writes one HTML file from the final report table of the MRD workflow. The file contains all
+data, styles and scripts and needs no internet connection.
+
+- Header with run name, workflow version, time of creation, a search field and filters
+  (detected, physician review, warnings).
+- Colour code for every sample and patient (H number): green = mutation detected and all QC
+  criteria passed; orange = detected, physician review (non-exact match or warning); red = a QC
+  criterion failed; red "!" = sample not processed (pipeline failure); green "ND" = QC passed,
+  not detected. A patient shows the most important code of its samples.
+- For every sample that is not green, the reason in words: which QC criterion failed with its
+  value (e.g. reads on marker chromosome 0.068 below 0.95), why a sample is under review (exact
+  match but VarDict FILTER not PASS, non-exact or partial FLT3-ITD match, pipeline warning), or
+  why it was not processed. A sample whose marker signal is present but removed by the quality
+  cutoffs ("Low-quality evidence at marker") is shown as QC failed with the evidence. A sample whose
+  marker the workflow finds only in its second analysis without quality cutoffs ("Found only without
+  quality cutoffs") is QC failed with the call of that analysis, and the Wet-lab QC tab marks it
+  "Repeat": the Phred 30 result is the reported one, the sample goes back to the wet lab. The reasons are listed under each patient, in the sample table and
+  in the chart tooltips.
+- With and without quality cutoffs: VAF of every marker call with the Phred 30 cutoffs and without
+  any quality cutoff side by side, and the samples to repeat.
+- A run overview with the number of detected, review, not detected and warning samples.
+- The corrections the workflow made to the sample table, if that output is given.
+- General QC of the run, each metric with median, minimum, maximum and the samples below the
+  workflow threshold. All reads of the sample (after demultiplexing and primer trimming, before
+  any quality filter): number of reads, mapped / all reads, on the marker chromosome / all reads,
+  reads at the target site (threshold 200,000) and at the target site / all reads, share passing
+  the fastp quality filter (columns "ALL ..."; shown when the report contains them). Read
+  families and filtered reads: number of reads, reads per read family, mapped / total, on the
+  marker chromosome, depth at the marker, VAF.
+- QC tab: run summary (medians), a read funnel per sample (all sequenced reads, mapped, on the
+  marker chromosome, at the target site, read families; as share of all reads, for the wet-lab
+  quality) and the UMI read-family size distribution (families of 1, 2, 3, 4-5, 6-10, more than
+  10 read pairs), when the report carries these columns.
+- Charts without any external library: one metric per sample with threshold and run median,
+  and a scatter plot of any two metrics (linear or log). Hover shows the values, a click opens
+  the sample.
+- One card per patient with all samples: primer, marker, "Mutation detected", VAF, depth,
+  mapped / total, on target, match type, physician review and pipeline status. Further columns
+  can be added. A click on a sample shows its QC against the run and every column of the
+  report, grouped (marker and call, QC criteria, FLT3, read families, raw reads, read counts
+  at the marker, barcodes).
+- A table of all samples with all columns, sortable by any column.
+- The search field searches every column.
+
+**Inputs**
+
+- *Final MRD report table*: tab separated, header line, one row per sample. Columns are found by
+  name (sample, PatientId, Primer, DNAPosition, AF, DP, Mutation detected, marker_match_type,
+  physician_review, pipeline_status, ...); missing columns are left empty.
+- *Sample table* (optional): the CSV sample sheet of the run. Samples that the workflow lost keep
+  their H number, primer and marker.
+- *Sample table corrections* (optional): the CSV listing of corrected fields.
+
+**Display in Galaxy**
+
+Galaxy removes scripts from HTML outputs unless the tool is on the sanitize allowlist
+(Admin, Manage Allowlist). Without that, download the file and open it in a browser.
+    ]]></help>
+    <citations>
+        <citation type="bibtex">@misc{mrd_html_report,
+  author = {Wolff, Joachim},
+  title = {MRD HTML report, Galaxy tools of the Department of Hematology, Hemostasis, Oncology and Cell Therapy, Hannover Medical School},
+  year = {2026},
+  howpublished = {\url{https://github.com/MHH-Bioinformatics-Hematology/galaxytools}}
+}</citation>
+    </citations>
+</tool>
