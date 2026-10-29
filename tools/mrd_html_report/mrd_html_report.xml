@@ -1,4 +1,4 @@
-<tool id="mrd_html_report" name="MRD HTML report" version="0.1" profile="22.05">
+<tool id="mrd_html_report" name="MRD HTML report" version="0.1.1" profile="22.05">
     <description>interactive report of an MRD run, grouped by patient</description>
     <requirements>
         <requirement type="package" version="3.12">python</requirement>
