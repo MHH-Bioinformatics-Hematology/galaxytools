@@ -15,9 +15,7 @@ qpcrpredict predict
     --target '$assay_source.target_name'
     --assay '$assay_source.assay'
 #end if
-#if str($model_source.source) == 'history'
-    --model '$model_source.model'
-#end if
+    --model '$model'
 ## TabPFN models are licensed for non-commercial use and not for hosted services. They are refused
 ## unless the server operator has set QPCRPREDICT_ALLOW_TABPFN=1 in the job environment.
     \$( [ "\${QPCRPREDICT_ALLOW_TABPFN:-0}" = "1" ] || echo '--disallow-family tabpfn' )
@@ -32,8 +30,8 @@ qpcrpredict predict
                help="One run file: an Applied Biosystems .eds project file, or an RDML file as exported by most qPCR software. The format is detected from the content."/>
         <conditional name="assay_source">
             <param name="source" type="select" label="Assay"
-                   help="The assay configuration defines the targets, the reference gene, the control names and the thresholds. Use the packaged AML MRD assay, or supply your own configuration (JSON, see 'qpcrpredict assay --show generic').">
-                <option value="packaged" selected="true">Packaged assay: AML molecular MRD (reference ABL1)</option>
+                   help="The assay configuration defines the targets, the reference gene, the control names and the thresholds. Use the built-in AML MRD assay, or supply your own configuration (JSON, see 'qpcrpredict assay --show generic').">
+                <option value="packaged" selected="true">Built-in assay: AML molecular MRD (reference ABL1)</option>
                 <option value="history">Assay configuration from history</option>
             </param>
             <when value="packaged">
@@ -59,18 +57,8 @@ qpcrpredict predict
                 </param>
             </when>
         </conditional>
-        <conditional name="model_source">
-            <param name="source" type="select" label="Prediction model"
-                   help="Use the model shipped with the tool (trained for the packaged AML MRD assay), or supply a bundle trained with 'qpcrpredict train'. A model from the history is required for any other assay.">
-                <option value="builtin" selected="true">Packaged default model</option>
-                <option value="history">Trained model from history</option>
-            </param>
-            <when value="builtin"/>
-            <when value="history">
-                <param name="model" type="data" format="data" label="Trained model bundle (.pkl)"
-                       help="Model bundles are pickle files. Only use bundles from a source you trust. Bundles of the TabPFN families are refused unless the server operator has enabled them, see the help below."/>
-            </when>
-        </conditional>
+        <param name="model" type="data" format="data" label="Model bundle (.pkl)"
+               help="A released model of the publication (aml_mrd.pkl with the laboratory thresholds, aml_mrd_abl10k.pkl with 10,000 ABL1 copies required for a negative call), downloaded from the data deposit and uploaded to the history, or a bundle trained with 'qpcrpredict train'. The tool ships no model. Model bundles are pickle files; only use bundles from a source you trust. Bundles of the TabPFN families are refused unless the server operator has enabled them, see the help below."/>
         <param name="sample" type="text" value="" optional="true" label="Single sample (optional)"
                help="Leave empty to score every sample that carries the target in the run, or give one sample name.">
             <sanitizer invalid_char="">
@@ -84,19 +72,17 @@ qpcrpredict predict
         <data name="predictions" format="tabular" label="${tool.name} on ${on_string}: predictions"/>
     </outputs>
     <tests>
-        <!-- packaged assay and model, all NPM1 samples of a synthetic .eds run -->
+        <!-- built-in assay and a synthetic test model, all NPM1 samples of a synthetic .eds run -->
         <test expect_num_outputs="1">
             <param name="run" value="synthetic_run.eds" ftype="binary"/>
             <conditional name="assay_source">
                 <param name="source" value="packaged"/>
                 <param name="target" value="NPM1"/>
             </conditional>
-            <conditional name="model_source">
-                <param name="source" value="builtin"/>
-            </conditional>
+            <param name="model" value="synthetic_model.pkl"/>
             <output name="predictions">
                 <assert_contents>
-                    <has_n_columns n="20"/>
+                    <has_n_columns n="21"/>
                     <has_text text="ref_qty_mean"/>
                     <has_line_matching expression="^SAMPLE1\tNPM1\tNPM1\t.*\tpositive\t.*"/>
                 </assert_contents>
@@ -109,9 +95,7 @@ qpcrpredict predict
                 <param name="source" value="packaged"/>
                 <param name="target" value="NPM1"/>
             </conditional>
-            <conditional name="model_source">
-                <param name="source" value="builtin"/>
-            </conditional>
+            <param name="model" value="synthetic_model.pkl"/>
             <param name="sample" value="SAMPLE1"/>
             <output name="predictions">
                 <assert_contents>
@@ -127,10 +111,7 @@ qpcrpredict predict
                 <param name="source" value="packaged"/>
                 <param name="target" value="NPM1"/>
             </conditional>
-            <conditional name="model_source">
-                <param name="source" value="history"/>
-                <param name="model" value="tabpfn_family_bundle.pkl"/>
-            </conditional>
+            <param name="model" value="tabpfn_family_bundle.pkl"/>
             <assert_stderr>
                 <has_text text="Prior Labs"/>
             </assert_stderr>
@@ -143,9 +124,7 @@ qpcrpredict predict
                 <param name="assay" value="aml_mrd.json"/>
                 <param name="target_name" value="NPM1 mut A"/>
             </conditional>
-            <conditional name="model_source">
-                <param name="source" value="builtin"/>
-            </conditional>
+            <param name="model" value="synthetic_model.pkl"/>
             <output name="predictions">
                 <assert_contents>
                     <has_text text="SAMPLE1"/>
@@ -160,25 +139,27 @@ qpcrpredict predict
 ``qpcrpredict`` is part of the LeukoPredict tools. It predicts the **positive** or **negative** call of a qPCR assay directly from the raw run
 file. Only the instrument data are used: the shape of the amplification curves and the Ct and
 quantity of the selected target and of the reference gene of the same sample. A quality and review
-gate turns runs that cannot be evaluated into an explicit **na** (repeat) decision and borderline
+gate turns runs that cannot be evaluated into an explicit **n.d.** (not evaluable, repeat) decision and borderline
 cases into a **review** flag for human classification.
 
-The packaged model was trained for AML molecular measurable residual disease (mutated NPM1,
-RUNX1::RUNX1T1, CBFB::MYH11, PML::RARA and BCR::ABL1, normalised to ABL1). For any other assay,
-supply your own assay configuration and a model trained with ``qpcrpredict train``.
+The tool ships no model. The released models of the publication were trained for AML molecular
+measurable residual disease (mutated NPM1, RUNX1::RUNX1T1, CBFB::MYH11, PML::RARA and BCR::ABL1,
+normalised to ABL1) and are downloaded from the data deposit (see the documentation,
+https://qpcrpredict.readthedocs.io/en/latest/models/) and uploaded to the history as a dataset. For any
+other assay, supply your own assay configuration and a model trained with ``qpcrpredict train``.
 
 **Inputs**
 
 * *qPCR run file* - an Applied Biosystems ``.eds`` file or an RDML file.
-* *Assay* - the packaged AML MRD assay, or an assay configuration (JSON) from the history.
+* *Assay* - the built-in AML MRD assay, or an assay configuration (JSON) from the history.
 * *Target* - the target to score.
-* *Prediction model* - the packaged model, or a bundle trained with ``qpcrpredict train``.
+* *Model bundle* - a released model from the data deposit, or a bundle trained with ``qpcrpredict train``.
 * *Single sample* (optional) - restrict scoring to one sample.
 
 **Output**
 
-A tabular file with one row per sample: the ``decision`` (positive / negative / review / na), the
-call and probability of the model, the material quality, the key readouts (target Ct, reference
+A tabular file with one row per sample: the ``decision`` (positive / negative / review / na) and its
+reported wording in ``call`` (n.d. for a run that cannot be evaluated), the call and probability of the model, the material quality, the key readouts (target Ct, reference
 copies, standard-curve R2, target/reference ratio) and the reason and recommendation for every
 deferred sample.
 
