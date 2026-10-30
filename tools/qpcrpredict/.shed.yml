@@ -1,0 +1,20 @@
+name: qpcrpredict
+owner: mhh-hematology
+categories:
+  - Machine Learning
+  - Statistics
+description: Trained positive/negative calls from raw real-time PCR run files (.eds, .rdml); part of the LeukoPredict tools
+long_description: |
+  qpcrpredict predicts the positive/negative call of a qPCR assay directly from the raw run file of the
+  instrument (Applied Biosystems .eds, or the vendor-neutral RDML format). Features are taken only
+  from the run file: the shape of the amplification curves and the Ct and quantity of the target
+  and its reference gene. A quality and review gate turns runs that cannot be evaluated into an
+  explicit 'n.d.' (not evaluable, repeat) decision and borderline cases into a 'review' flag for human
+  classification. Targets, reference gene, control names and thresholds
+  are defined in an assay configuration. The model bundle is a history dataset: a released model
+  of the publication (AML molecular MRD: mutated NPM1, RUNX1::RUNX1T1, CBFB::MYH11, PML::RARA,
+  BCR::ABL1, normalised to ABL1) or a user-trained bundle. A second tool writes an HTML report
+  from one or more prediction tables.
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/qpcrpredict
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/qpcrpredict
+type: unrestricted
