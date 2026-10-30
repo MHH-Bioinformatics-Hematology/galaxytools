@@ -27,8 +27,8 @@ python -m qpcrpredict.cli predict
     --quiet
     ]]></command>
     <inputs>
-        <param name="run" type="data" format="binary,zip" label="qPCR run file (.eds or .rdml)"
-               help="One run file: an Applied Biosystems .eds project file, or an RDML file as exported by most qPCR software. The format is detected from the content."/>
+        <param name="run" type="data" format="zip,binary" label="qPCR run file (.eds or .rdml)"
+               help="One run file: an Applied Biosystems .eds project file, or an RDML file as exported by most qPCR software. The format is detected from the content. Upload run files with the datatype zip; with the automatic datatype Galaxy unpacks the archive on upload and the run file is lost."/>
         <conditional name="assay_source">
             <param name="source" type="select" label="Assay"
                    help="The assay configuration defines the targets, the reference gene, the control names and the thresholds. Use the built-in AML MRD assay, or supply your own configuration (JSON, see 'qpcrpredict assay --show generic').">
@@ -75,7 +75,7 @@ python -m qpcrpredict.cli predict
     <tests>
         <!-- built-in assay and a synthetic test model, all NPM1 samples of a synthetic .eds run -->
         <test expect_num_outputs="1">
-            <param name="run" value="synthetic_run.eds" ftype="binary"/>
+            <param name="run" value="synthetic_run.eds" ftype="zip"/>
             <conditional name="assay_source">
                 <param name="source" value="packaged"/>
                 <param name="target" value="NPM1"/>
@@ -107,7 +107,7 @@ python -m qpcrpredict.cli predict
         </test>
         <!-- a bundle of a TabPFN family is refused by default -->
         <test expect_failure="true">
-            <param name="run" value="synthetic_run.eds" ftype="binary"/>
+            <param name="run" value="synthetic_run.eds" ftype="zip"/>
             <conditional name="assay_source">
                 <param name="source" value="packaged"/>
                 <param name="target" value="NPM1"/>
@@ -119,7 +119,7 @@ python -m qpcrpredict.cli predict
         </test>
         <!-- assay configuration from the history, target given by its detector name -->
         <test expect_num_outputs="1">
-            <param name="run" value="synthetic_run.eds" ftype="binary"/>
+            <param name="run" value="synthetic_run.eds" ftype="zip"/>
             <conditional name="assay_source">
                 <param name="source" value="history"/>
                 <param name="assay" value="aml_mrd.json"/>
