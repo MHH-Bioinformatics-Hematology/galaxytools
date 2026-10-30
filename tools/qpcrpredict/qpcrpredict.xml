@@ -5,9 +5,10 @@
     </macros>
     <expand macro="requirements"/>
     <command detect_errors="exit_code"><![CDATA[
+@INSTALL_QPCRPREDICT@
 ## the format is detected from the file content, the link only keeps a readable name in the report
 ln -s '$run' 'run_file' &&
-qpcrpredict predict
+python -m qpcrpredict.cli predict
     --run 'run_file'
 #if str($assay_source.source) == 'packaged'
     --target '$assay_source.target'

@@ -5,13 +5,14 @@
     </macros>
     <expand macro="requirements"/>
     <command detect_errors="exit_code"><![CDATA[
+@INSTALL_QPCRPREDICT@
 #for $i, $t in enumerate($tables)
     ln -s '$t' 'table_${i}.tsv' &&
 #end for
 #for $r in $runs
     ln -s '$r' '$r.element_identifier' &&
 #end for
-qpcrpredict report
+python -m qpcrpredict.cli report
 #for $i, $t in enumerate($tables)
     'table_${i}.tsv'
 #end for

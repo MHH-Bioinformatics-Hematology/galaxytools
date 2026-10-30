@@ -1,12 +1,31 @@
 <macros>
     <token name="@TOOL_VERSION@">1</token>
-    <token name="@VERSION_SUFFIX@">0</token>
+    <token name="@VERSION_SUFFIX@">1</token>
     <token name="@PROFILE@">23.0</token>
+    <!-- the qpcrpredict commit installed at job time; move this forward with each release of the package -->
+    <token name="@QPCRPREDICT_REF@">30b6e0ad068df5937b393083a851e9a361fe0ac0</token>
     <xml name="requirements">
         <requirements>
-            <requirement type="package" version="@TOOL_VERSION@">qpcrpredict</requirement>
+            <!-- the dependencies of qpcrpredict come from conda; the package itself is installed
+                 from GitHub into the job directory (see the install token) -->
+            <requirement type="package" version="3.12">python</requirement>
+            <requirement type="package" version="2.4.6">numpy</requirement>
+            <requirement type="package" version="3.0.3">pandas</requirement>
+            <requirement type="package" version="1.9.0">scikit-learn</requirement>
+            <requirement type="package" version="1.17.1">scipy</requirement>
+            <requirement type="package" version="1.5.3">joblib</requirement>
+            <requirement type="package" version="24.0.0">pyarrow</requirement>
+            <requirement type="package" version="25.3">pip</requirement>
         </requirements>
     </xml>
+    <!-- installs qpcrpredict from the pinned GitHub commit into the job working directory, without
+         touching the shared conda environment, and puts it on PYTHONPATH; the command is then
+         `python -m qpcrpredict.cli` -->
+    <token name="@INSTALL_QPCRPREDICT@"><![CDATA[
+pip install --quiet --no-deps --no-cache-dir --target "\$PWD/pylib"
+    'https://github.com/MHH-Bioinformatics-Hematology/qpcrpredict/archive/@QPCRPREDICT_REF@.tar.gz' &&
+export PYTHONPATH="\$PWD/pylib\${PYTHONPATH:+:\$PYTHONPATH}" &&
+]]></token>
     <xml name="citations">
         <citations>
             <citation type="bibtex"><![CDATA[
