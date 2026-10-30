@@ -1,9 +1,9 @@
 <macros>
-    <token name="@TOOL_VERSION@">1</token>
-    <token name="@VERSION_SUFFIX@">1</token>
+    <token name="@TOOL_VERSION@">1.1</token>
+    <token name="@VERSION_SUFFIX@">0</token>
     <token name="@PROFILE@">23.0</token>
-    <!-- the qpcrpredict commit installed at job time; move this forward with each release of the package -->
-    <token name="@QPCRPREDICT_REF@">30b6e0ad068df5937b393083a851e9a361fe0ac0</token>
+    <!-- the qpcrpredict release tag installed at job time; equals the tool version -->
+    <token name="@QPCRPREDICT_REF@">refs/tags/v@TOOL_VERSION@</token>
     <xml name="requirements">
         <requirements>
             <!-- the dependencies of qpcrpredict come from conda; the package itself is installed
