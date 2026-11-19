@@ -1,0 +1,14 @@
+name: bam_readcount
+owner: mhh-hematology
+categories:
+  - Sequence Analysis
+  - Variant Analysis
+description: BAM Readcount with an indexed built-in reference genome
+long_description: |
+  bam-readcount reports base counts, mapping and base qualities, strandedness and mismatch
+  statistics at single positions of a BAM or CRAM file. This version of the IUC wrapper also
+  accepts a built-in genome from the fasta_indexes data table, so the precomputed .fai is reused
+  instead of indexing the whole reference in every job.
+homepage_url: https://github.com/genome/bam-readcount
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/bam_readcount
+type: unrestricted
