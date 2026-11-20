@@ -1,0 +1,88 @@
+<tool id="mrd_samplesheet_report" name="MRD sample sheet check report" version="0.1.0" profile="22.05">
+    <description>HTML page with what to fix</description>
+    <requirements>
+        <requirement type="package" version="3.12">python</requirement>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+python3 '$__tool_directory__/mrd_samplesheet_report.py'
+    '$report'
+#if $edits
+    --edits '$edits'
+#end if
+#if $sheet
+    --sheet '$sheet'
+#end if
+    --title '$run_name'
+    --output '$html'
+    ]]></command>
+    <inputs>
+        <param name="report" type="data" format="txt" label="Sample sheet check report"
+               help="The 'Sample sheet check report' output of the sample sheet check workflow."/>
+        <param name="edits" type="data" format="tabular" optional="true" label="Automatic edits per sample"
+               help="Optional. The 'Automatic edits per sample' output; samples with edits are listed and marked."/>
+        <param name="sheet" type="data" format="csv,tabular" optional="true" label="Corrected sample sheet"
+               help="Optional. Shown at the end, with the samples that have problems or edits marked."/>
+        <param name="run_name" type="text" value="" label="Run name" help="Shown in the header, e.g. MRD2026-038.">
+            <sanitizer invalid_char="">
+                <valid initial="string.printable">
+                    <remove value="&apos;"/>
+                </valid>
+            </sanitizer>
+        </param>
+    </inputs>
+    <outputs>
+        <data name="html" format="html" label="${tool.name} on ${on_string}"/>
+    </outputs>
+    <tests>
+        <test expect_num_outputs="1">
+            <param name="report" value="check_report.txt"/>
+            <param name="edits" value="edits.tabular"/>
+            <param name="sheet" value="sheet.csv"/>
+            <param name="run_name" value="TESTRUN-001"/>
+            <output name="html">
+                <assert_contents>
+                    <has_text text="Fix the sample sheet by hand: 2 problems in 2 checks"/>
+                    <has_text text="Primer did not match the location"/>
+                    <has_text text="fits NM_000002.1"/>
+                    <has_text text="Notation is not valid"/>
+                    <has_text text="Every primer is in the primer table"/>
+                    <has_text text="Automatic corrections"/>
+                    <has_text text="TESTRUN-001"/>
+                </assert_contents>
+            </output>
+        </test>
+        <test expect_num_outputs="1">
+            <param name="report" value="check_clean.txt"/>
+            <param name="edits" value="edits_none.tabular"/>
+            <output name="html">
+                <assert_contents>
+                    <has_text text="Sheet can be used: no problems, no corrections"/>
+                    <not_has_text text="Automatic corrections"/>
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Turns the outputs of the MRD sample sheet check into one HTML page for the wet lab:
+
+- a traffic light: green (no problems, no corrections), orange (corrected automatically, can be used),
+  red (problems to fix by hand before the run);
+- one card per problem type, with what to do and the samples concerned
+  (wrong number of columns, notation, unknown primer or MID, repeated MID combination, marker unknown
+  to TransVar, primer and transcript of different genes, marker outside the amplicon of the primer,
+  DNA position or protein not fitting the transcript);
+- the automatic corrections per sample;
+- the corrected sample sheet with the affected samples marked.
+
+The page needs no internet connection.
+    ]]></help>
+    <citations>
+        <citation type="bibtex">@misc{mhh_mrd_samplesheet_report,
+  title = {MRD sample sheet check report},
+  author = {{MHH Bioinformatics Hematology}},
+  url = {https://github.com/MHH-Bioinformatics-Hematology/galaxytools}
+}</citation>
+    </citations>
+</tool>

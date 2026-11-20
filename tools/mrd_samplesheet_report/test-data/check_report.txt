@@ -1,0 +1,21 @@
+-------------------------------------
+Sample sheet check: problems to fix by hand (automatic corrections are listed in the output Automatic edits per sample)
+-------------------------------------
+-------------------------------------
+Rows without exactly 8 columns (not corrected, line numbers of the original sheet)
+-------------------------------------
+.
+-------------------------------------
+Notation not valid (Transcript, DNAPosition, AminoAcid)
+-------------------------------------
+Sample	Column	Value	Problem
+2	DNAPosition	c.G35A	bases written before the position, expected c.35G>A
+-------------------------------------
+Primer not in the primer table
+-------------------------------------
+.
+-------------------------------------
+Marker position outside the amplicon of the primer (primer table)
+-------------------------------------
+Sample	Primer	Transcript	DNAPosition	Marker position (hg19)	Amplicon (hg19)	Hint
+3	GENEA_NGS_1	NM_000001.1	c.100A>G	chr1:1000	chr1:2000-2100	fits NM_000002.1
