@@ -1,0 +1,13 @@
+name: mrd_samplesheet_report
+owner: mhh-hematology
+categories:
+  - Visualization
+description: HTML page with instructions from the MRD sample sheet check
+long_description: |
+  Turns the outputs of the MHH MRD sample sheet check (check report, automatic edits per sample,
+  corrected sample sheet) into one self-contained HTML page for the wet lab. A traffic light at the top
+  says whether the sheet can be used; every problem type gets a card with what to do and the samples
+  concerned; the automatic corrections and the corrected sheet follow, with the affected samples marked.
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/mrd_samplesheet_report
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/mrd_samplesheet_report
+type: unrestricted
