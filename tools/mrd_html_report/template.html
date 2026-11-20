@@ -89,6 +89,22 @@ div.main { margin-left:var(--sidebar-w); padding:1.2em 1.6em 3em; max-width:2000
 }
 body.panelopen #panel { display:block; }
 @media (min-width:1500px) { body.panelopen div.main { margin-right:48em; } }
+/* below 1500 px the panel is an overlay over a dimmed page; a tap on the dimmed part closes it */
+#shade { position:fixed; inset:0; z-index:14; background:rgba(0,0,0,.35); display:none; }
+@media (max-width:1499px) { body.panelopen #shade { display:block; } body.panelopen { overflow:hidden; } #panel { box-shadow:-12px 0 40px rgba(0,0,0,.25); } }
+@media (max-width:760px) { #panel { width:calc(100vw - 2.4em); padding:.8em 1em 2em; } }
+tr.row, tr.info { cursor:pointer; }
+#panel { overflow-x:hidden; }
+#panel th { top:0; }
+#panel .pw { overflow-x:auto; }
+#panel .cnt { white-space:normal; }
+#panel .ph h2 { min-width:0; } #panel .ph h2 .sub, #panel .why li { overflow-wrap:anywhere; }
+#panel pre.aln { max-width:100%; white-space:pre; overflow-x:auto; } #panel .kv .v { min-width:0; }
+#panel .kv, #panel .groups { min-width:0; }
+@media (max-width:760px) { #panel .qcbars { grid-template-columns:minmax(0,1fr) minmax(3em,.6fr) 7.5em; } #panel .groups { grid-template-columns:1fr; } }
+#panel .pw td.mk, #panel .pw td.txt { max-width:12em; overflow-wrap:anywhere; white-space:normal; }
+tr.info:hover td { background:var(--surface-2); }
+.ph .hint { display:block; color:var(--muted); font-size:.75rem; font-weight:400; margin-top:.2em; }
 #panel .ph { display:flex; align-items:flex-start; gap:.8em; margin-bottom:.6em; }
 #panel .ph h2 { margin:0; font-size:1.15rem; flex:1; }
 #panel .ph h2 .sub { display:block; color:var(--muted); font-size:.8rem; font-weight:500; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
@@ -272,7 +288,8 @@ button#navtoggle .chev { margin-left:auto; color:var(--muted); }
 <button id="navtoggle" aria-expanded="false" aria-controls="nav"><span id="navtoggle-label">Contents and patients</span><span class="chev">&#9662;</span></button>
 <div class="summary" id="nav"></div>
 <div class="main" id="main"><div id="view-results"></div><div id="view-qc" class="hidden"></div></div>
-<div id="panel" aria-live="polite"></div>
+<div id="shade"></div>
+<div id="panel" aria-live="polite" role="dialog"></div>
 <div id="tip"></div>
 <script id="mrd-data" type="application/json">
 __DATA__
@@ -734,7 +751,7 @@ __DATA__
       var ma = idx.map(function (i) { return mv('all_mapped', R[i]); }).filter(function (x) { return x !== null; });
       var lowI = idx.slice().sort(function (a, b) { return (mv('site_of_mapped', R[a]) || 0) - (mv('site_of_mapped', R[b]) || 0); })[0];
       var med = median(so), bad = med !== null && med < WL.min_on_target;
-      t += '<tr><td>' + esc(p) + '</td><td class="num">' + idx.length + '</td><td class="num' + (bad ? ' low' : '') + '">' + pct(med) + '</td><td class="num"><a href="#" data-goto="' + lowI + '">' + esc(sampleKey(R[lowI])) + '</a> ' + pct(mv('site_of_mapped', R[lowI])) + cnt('site_of_mapped', R[lowI]) + '</td><td class="num">' + pct(median(ma)) + '</td><td>' +
+      t += '<tr class="info" data-primer="' + esc(p) + '"><td class="pr">' + wb(p) + '</td><td class="num">' + idx.length + '</td><td class="num' + (bad ? ' low' : '') + '">' + pct(med) + '</td><td class="num"><a href="#" data-goto="' + lowI + '">' + esc(sampleKey(R[lowI])) + '</a> ' + pct(mv('site_of_mapped', R[lowI])) + cnt('site_of_mapped', R[lowI]) + '</td><td class="num">' + pct(median(ma)) + '</td><td>' +
         (med === null ? 'NA' : bad ? badge('Check', 'warn') : badge('OK', 'pass')) + '</td></tr>';
     });
     return t + '</table></div></div>';
@@ -799,7 +816,7 @@ __DATA__
     var vals = [], lows = [];
     ORDER.forEach(function (i) { var x = mv(m.id, R[i]); if (x !== null) vals.push(x); if (below(m, R[i])) lows.push(i); });
     var fs = fracSum(m.id);
-    qhtml += '<tr><td style="font-family:inherit">' + esc(m.label) + '</td><td class="why">' + esc(fracDesc(m.id)) + '</td><td class="num">' +
+    qhtml += '<tr class="info" data-metric="' + m.id + '"><td style="font-family:inherit">' + esc(m.label) + '</td><td class="why">' + esc(fracDesc(m.id)) + '</td><td class="num">' +
       (fs ? fmt(m, fs[0] / fs[1]) + '<span class="cnt">' + n0(fs[0]) + ' of ' + n0(fs[1]) + '</span>' : '') + '</td><td class="num">' + vals.length + '</td><td class="num">' + fmt(m, median(vals)) +
       '</td><td class="num">' + fmt(m, vals.length ? Math.min.apply(null, vals) : null) + '</td><td class="num">' + fmt(m, vals.length ? Math.max.apply(null, vals) : null) +
       '</td><td class="num">' + (m.thr !== undefined ? '&ge; ' + fmt(m, m.thr) : '') + '</td><td>' +
@@ -862,6 +879,47 @@ __DATA__
     var tr = document.querySelector('#main div.module:not(.off) tr.row[data-i="' + i + '"]');
     if (tr && tr.getBoundingClientRect) { var b = tr.getBoundingClientRect(); if (b.top < 0 || b.bottom > innerHeight) tr.scrollIntoView({block:'nearest'}); }
   }
+  function panelHead(title, sub) {
+    return '<div class="ph"><h2>' + title + '<span class="sub">' + sub + '</span><span class="hint">Click a sample for all its values.</span></h2>' +
+      '<div class="nav"><button class="chip" id="pclose" title="Close (Esc)">&#10005;</button></div></div>';
+  }
+  function showInfo(html) {
+    CUR = -1;
+    document.getElementById('panel').innerHTML = html;
+    document.body.classList.add('panelopen');
+    document.getElementById('panel').scrollTop = 0;
+  }
+  function sampleRow(i, cells) {
+    return '<tr class="row" data-i="' + i + '"><td>' + esc(sampleKey(R[i])) + '</td><td class="nw">' + esc(C_PAT ? g(R[i], C_PAT) : '') + '</td>' + cells + '</tr>';
+  }
+  // all samples of one primer, with the primer-related values and their counts
+  function primerInfo(p) {
+    var idx = ORDER.filter(function (i) { return g(R[i], 'Primer') === p; });
+    var t = panelHead('Primer ' + wb(p), idx.length + ' sample' + (idx.length === 1 ? '' : 's') + ' in this run') +
+      '<div class="pw"><table><tr><th>Sample</th><th>H number</th><th>Marker</th><th>Result</th><th>At target site / mapped</th><th>Mapped / all reads</th><th>Wet lab</th></tr>';
+    idx.forEach(function (i) {
+      var r = R[i];
+      function v(id, lim) { var x = mv(id, r); return '<td class="num' + (lim !== undefined && x !== null && x < lim ? ' low' : '') + '">' + pct(x) + cnt(id, r) + '</td>'; }
+      t += sampleRow(i, '<td class="mk">' + esc(g(r, 'DNAPosition')) + '</td><td class="nw">' + mdBadge(r) + '</td>' + v('site_of_mapped', WL.min_on_target) + v('all_mapped', WL.min_mapped) + '<td>' + wlStateBadge(wetlab(r).state) + '</td>');
+    });
+    var fs = null, a = 0, b = 0;
+    idx.forEach(function (i) { var f = frac('site_of_mapped', R[i]); if (f) { a += f[0]; b += f[1]; fs = 1; } });
+    showInfo(t + '</table></div>' + (fs ? '<p class="note">All samples of the primer together: ' + pct(a / b) + ' of the mapped reads at the target site (' + n0(a) + ' of ' + n0(b) + ').</p>' : ''));
+  }
+  // one QC metric over all samples, lowest first, with the counts behind each value
+  function metricInfo(id) {
+    var m = MI[id]; if (!m) return;
+    var idx = ORDER.filter(function (i) { return mv(id, R[i]) !== null; }).sort(function (a, b) { return mv(id, R[a]) - mv(id, R[b]); });
+    var fs = fracSum(id), desc = fracDesc(id);
+    var t = panelHead(esc(m.label), (desc ? esc(desc) + ' &middot; ' : '') + idx.length + ' samples, lowest first' + (m.thr !== undefined ? ' &middot; threshold ' + fmt(m, m.thr) : '')) +
+      (fs ? '<p class="note">Run total: ' + fmt(m, fs[0] / fs[1]) + ' (' + n0(fs[0]) + ' of ' + n0(fs[1]) + '); run median ' + fmt(m, MED[id]) + '.</p>' : '') +
+      '<div class="pw"><table><tr><th>Sample</th><th>H number</th><th>Primer</th><th>Value</th><th>Result</th></tr>';
+    idx.forEach(function (i) {
+      var r = R[i];
+      t += sampleRow(i, '<td class="pr">' + wb(g(r, 'Primer')) + '</td><td class="num' + (below(m, r) ? ' low' : '') + '">' + fmt(m, mv(id, r)) + cnt(id, r) + '</td><td class="nw">' + mdBadge(r) + '</td>');
+    });
+    showInfo(t + '</table></div>');
+  }
   function closePanel() { CUR = null; document.body.classList.remove('panelopen'); Array.prototype.forEach.call(document.querySelectorAll('tr.row.sel'), function (tr) { tr.classList.remove('sel'); }); }
   // next / previous visible sample in the list on screen
   function stepPanel(d) {
@@ -872,10 +930,13 @@ __DATA__
   }
   document.getElementById('panel').addEventListener('click', function (e) {
     if (e.target.closest('#pclose')) closePanel(); else if (e.target.closest('#pnext')) stepPanel(1); else if (e.target.closest('#pprev')) stepPanel(-1);
+    else { var tr = e.target.closest('tr.row'); if (tr && tr.dataset.i !== undefined) openPanel(+tr.dataset.i); }
   });
+  document.getElementById('shade').addEventListener('click', closePanel);
   document.addEventListener('keydown', function (e) {
     if (CUR === null || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
     if (e.key === 'Escape') closePanel();
+    else if (CUR < 0) return;
     else if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); stepPanel(1); }
     else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); stepPanel(-1); }
   });
@@ -886,6 +947,9 @@ __DATA__
     if (f) { filt = f.dataset.f; apply(); return; }
     var tr = e.target.closest('tr.row');
     if (tr && tr.dataset.i !== undefined) { goSample(+tr.dataset.i); return; }
+    var ti = e.target.closest('tr.info');
+    if (ti && ti.dataset.primer !== undefined) { primerInfo(ti.dataset.primer); return; }
+    if (ti && ti.dataset.metric !== undefined) { metricInfo(ti.dataset.metric); return; }
     var h = e.target.closest('div.module > h2');
     if (h) h.parentNode.classList.toggle('collapsed');
   });
