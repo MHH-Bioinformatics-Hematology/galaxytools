@@ -1,0 +1,193 @@
+<tool id="collection_filter_lines" name="Check collection elements by line content" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="24.2">
+    <description>list the elements with enough lines, for Filter collection</description>
+    <macros>
+        <token name="@TOOL_VERSION@">5.3.0</token>
+        <token name="@VERSION_SUFFIX@">0</token>
+    </macros>
+    <requirements>
+        <requirement type="package" version="@TOOL_VERSION@">gawk</requirement>
+    </requirements>
+    <version_command>awk --version | head -n 1</version_command>
+    <command detect_errors="exit_code"><![CDATA[
+mkdir kept discarded &&
+: > '$kept_identifiers' &&
+#for $index, $element in enumerate($input)
+    #set $identifier = str($element.element_identifier)
+    #set $file_name = '%06d_' % $index + $identifier.replace('/', '_').replace("'", '_')
+    #if $criterion.mode == 'min_lines'
+        result=\$(awk -v skip='$skip_comments' -v nonblank='$criterion.content' '(skip == "yes" && /^#/) { next } (nonblank == "any" || /[^[:space:]]/) { n++ } END { print n + 0 }' '$element') &&
+        keep=\$([ "\$result" -ge $criterion.lines ] && echo yes || echo no) &&
+    #else
+        keep=\$(awk -v skip='$skip_comments' -v want=$criterion.line '(skip == "yes" && /^#/) { next } { n++ } n == want { if (\$0 ~ /[^[:space:]]/) ok = 1; exit } END { print (ok ? "yes" : "no") }' '$element') &&
+    #end if
+    if [ "\$keep" = yes ]; then
+        printf '%s\n' '$identifier' >> '$kept_identifiers'
+        #if $copy_elements
+            && cp '$element' 'kept/${file_name}.${element.ext}'
+        #end if
+        ;
+    else
+        true
+        #if $copy_elements
+            && cp '$element' 'discarded/${file_name}.${element.ext}'
+        #end if
+        ;
+    fi &&
+#end for
+true
+    ]]></command>
+    <inputs>
+        <param name="input" type="data_collection" collection_type="list" format="txt" label="Collection to filter"/>
+        <conditional name="criterion">
+            <param name="mode" type="select" label="Keep an element if">
+                <option value="min_lines" selected="true">it has at least N lines</option>
+                <option value="line_content">line N has content</option>
+            </param>
+            <when value="min_lines">
+                <param name="lines" type="integer" value="2" min="0" label="N, minimum number of lines" help="2 drops elements that hold a header line only, 1 drops empty elements."/>
+                <param name="content" type="select" label="Lines that count">
+                    <option value="any" selected="true">every line</option>
+                    <option value="nonblank">only lines with content (not empty, not only spaces or tabs)</option>
+                </param>
+            </when>
+            <when value="line_content">
+                <param name="line" type="integer" value="2" min="1" label="N, line that must have content" help="Kept if this line exists and holds more than spaces or tabs. 2 drops elements that hold a header line only."/>
+            </when>
+        </conditional>
+        <param name="copy_elements" type="boolean" checked="false" label="Also output the kept and discarded elements as collections" help="Copies the files. Without it, only the list of identifiers is written: give it to the built-in tool Filter collection (from a file), which splits the collection without copying."/>
+        <param name="skip_comments" type="boolean" truevalue="yes" falsevalue="no" checked="false" label="Ignore lines starting with #" help="Comment lines are not counted, and line N is counted without them."/>
+    </inputs>
+    <outputs>
+        <collection name="kept" type="list" label="${tool.name} on ${on_string}: kept">
+            <filter>copy_elements</filter>
+            <discover_datasets pattern="^\d{6}_(?P&lt;designation&gt;.+)\.(?P&lt;ext&gt;[^.]+)$" directory="kept" sort_by="filename"/>
+        </collection>
+        <collection name="discarded" type="list" label="${tool.name} on ${on_string}: discarded">
+            <filter>copy_elements</filter>
+            <discover_datasets pattern="^\d{6}_(?P&lt;designation&gt;.+)\.(?P&lt;ext&gt;[^.]+)$" directory="discarded" sort_by="filename"/>
+        </collection>
+        <data name="kept_identifiers" format="txt" label="${tool.name} on ${on_string}: identifiers kept"/>
+    </outputs>
+    <tests>
+        <!-- 1: at least 2 lines drops the header-only and the empty element -->
+        <test expect_num_outputs="3">
+            <param name="input">
+                <collection type="list">
+                    <element name="data" value="header_and_data.tabular" ftype="tabular"/>
+                    <element name="header" value="header_only.tabular" ftype="tabular"/>
+                    <element name="empty" value="empty.tabular" ftype="tabular"/>
+                </collection>
+            </param>
+            <param name="copy_elements" value="true"/>
+            <output_collection name="kept" type="list" count="1">
+                <element name="data" file="header_and_data.tabular" ftype="tabular"/>
+            </output_collection>
+            <output_collection name="discarded" type="list" count="2">
+                <element name="header" file="header_only.tabular"/>
+                <element name="empty" file="empty.tabular"/>
+            </output_collection>
+            <output name="kept_identifiers">
+                <assert_contents>
+                    <has_n_lines n="1"/>
+                    <has_line line="data"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- 2: line 2 must have content; a blank second line does not count -->
+        <test expect_num_outputs="3">
+            <param name="input">
+                <collection type="list">
+                    <element name="data" value="header_and_data.tabular" ftype="tabular"/>
+                    <element name="blank" value="header_blank.tabular" ftype="tabular"/>
+                </collection>
+            </param>
+            <conditional name="criterion">
+                <param name="mode" value="line_content"/>
+                <param name="line" value="2"/>
+            </conditional>
+            <param name="copy_elements" value="true"/>
+            <output_collection name="kept" type="list" count="1">
+                <element name="data" file="header_and_data.tabular"/>
+            </output_collection>
+            <output_collection name="discarded" type="list" count="1">
+                <element name="blank" file="header_blank.tabular"/>
+            </output_collection>
+        </test>
+        <!-- 3: comment lines ignored, only lines with content counted -->
+        <test expect_num_outputs="3">
+            <param name="input">
+                <collection type="list">
+                    <element name="data" value="header_and_data.tabular" ftype="tabular"/>
+                    <element name="comments" value="comments_header.tabular" ftype="tabular"/>
+                    <element name="blank" value="header_blank.tabular" ftype="tabular"/>
+                </collection>
+            </param>
+            <conditional name="criterion">
+                <param name="mode" value="min_lines"/>
+                <param name="lines" value="2"/>
+                <param name="content" value="nonblank"/>
+            </conditional>
+            <param name="copy_elements" value="true"/>
+            <param name="skip_comments" value="true"/>
+            <output_collection name="kept" type="list" count="1">
+                <element name="data" file="header_and_data.tabular"/>
+            </output_collection>
+            <output_collection name="discarded" type="list" count="2"/>
+        </test>
+        <!-- 4: default, only the identifiers, in input order, no copies -->
+        <test expect_num_outputs="1">
+            <param name="input">
+                <collection type="list">
+                    <element name="s2" value="header_and_data.tabular" ftype="tabular"/>
+                    <element name="s1" value="header_only.tabular" ftype="tabular"/>
+                    <element name="s0" value="header_and_data.tabular" ftype="tabular"/>
+                </collection>
+            </param>
+            <output name="kept_identifiers">
+                <assert_contents>
+                    <has_n_lines n="2"/>
+                    <has_line_matching expression="^s2$"/>
+                    <has_line_matching expression="^s0$"/>
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Checks every element of a list collection by its lines and writes the identifiers of the
+elements that pass. Give that list to the built-in tool **Filter collection** (filter from a
+file): it splits the original collection into kept and discarded elements without copying any
+file, so it is fast even for BAMs. Optionally the tool also writes the elements as two
+collections itself (copies).
+Typical use: drop per-sample results that hold only a header line, which "Filter empty datasets"
+keeps because they are not empty.
+
+-----
+
+**Criteria**
+
+*At least N lines*
+    N = 1 drops empty elements, N = 2 drops elements with a header only. Optionally only lines
+    with content count, so a header followed by blank lines is dropped too.
+
+*Line N has content*
+    The element is kept if line N exists and holds more than spaces or tabs.
+
+*Ignore lines starting with #*
+    Comment lines are neither counted nor used as line N.
+
+-----
+
+**Outputs**
+
+- *identifiers kept*: one identifier per line, in the order of the input collection.
+- *kept* and *discarded* (optional): copies of the elements, with their identifiers and
+  datatypes, in the order of the input collection.
+
+Failed elements cannot be read by any tool; remove them first with "Filter failed datasets".
+    ]]></help>
+    <citations>
+        <citation type="bibtex">@misc{gawk, title = {GNU Awk}, url = {https://www.gnu.org/software/gawk/}}</citation>
+    </citations>
+</tool>

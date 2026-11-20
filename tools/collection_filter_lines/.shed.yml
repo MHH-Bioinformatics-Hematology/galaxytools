@@ -1,0 +1,13 @@
+name: collection_filter_lines
+owner: mhh-hematology
+categories:
+  - Text Manipulation
+description: Filter collection elements by line count or by the content of line N
+long_description: |
+  Splits a list collection into the elements that pass a line check and those that do not, for
+  example to drop per-sample results that hold only a header line. Criteria: at least N lines
+  (optionally only lines with content), or line N has content; comment lines can be ignored.
+  Also writes the identifiers kept, for use with the built-in Filter collection tool.
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/collection_filter_lines
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/collection_filter_lines
+type: unrestricted
