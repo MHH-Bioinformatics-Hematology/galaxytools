@@ -1,4 +1,4 @@
-<tool id="mrd_html_report" name="MRD HTML report" version="0.1.1" profile="22.05">
+<tool id="mrd_html_report" name="MRD HTML report" version="0.2.0" profile="22.05">
     <description>interactive report of an MRD run, grouped by patient</description>
     <requirements>
         <requirement type="package" version="3.12">python</requirement>
@@ -18,6 +18,7 @@ python3 '$__tool_directory__/mrd_html_report.py'
     --wetlab-min-on-target '$wetlab.min_on_target'
     --wetlab-min-quality '$wetlab.min_quality'
     --wetlab-min-families '$wetlab.min_families'
+    --wetlab-min-target-share '$wetlab.min_target_share'
     --output '$html'
     ]]></command>
     <inputs>
@@ -46,6 +47,7 @@ python3 '$__tool_directory__/mrd_html_report.py'
             <param name="min_on_target" type="float" value="0.5" min="0" max="1" label="Minimum reads at the target site / mapped reads" help="Below: the primers amplify off target."/>
             <param name="min_quality" type="float" value="0.5" min="0" max="1" label="Minimum reads passing the quality filter / all reads" help="Below: low sequencing quality."/>
             <param name="min_families" type="float" value="0.1" min="0" max="1" label="Minimum read families / all reads" help="Below: few distinct molecules (low DNA input or over-amplification)."/>
+            <param name="min_target_share" type="float" value="0.95" min="0" max="1" label="Minimum reads at the target site / all reads" help="Below: sequencing capacity goes to reads that do not count for the marker (primer dimers, off-target products, unmapped reads), a cost issue even when the depth at the marker is enough."/>
         </section>
     </inputs>
     <outputs>
@@ -62,6 +64,7 @@ python3 '$__tool_directory__/mrd_html_report.py'
                 <assert_contents>
                     <has_text text="&lt;title&gt;MRD report&lt;/title&gt;"/>
                     <has_text text="TESTRUN-001 | MRD workflow test"/>
+                    <has_text text="&quot;min_target_share&quot;: 0.95"/>
                     <has_text text="H00TEST0002"/>
                     <!-- the lost sample 4 gets its H number from the sample table -->
                     <has_text text="H00TEST0003"/>

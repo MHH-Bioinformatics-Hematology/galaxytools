@@ -88,6 +88,10 @@ def main():
     ap.add_argument("--wetlab-min-families", type=float, default=0.1,
                     help="read families / all reads below this: few "
                          "distinct molecules")
+    ap.add_argument("--wetlab-min-target-share", type=float, default=0.95,
+                    help="reads at the target site / all reads below "
+                         "this: sequencing capacity spent on reads that "
+                         "do not count")
     args = ap.parse_args()
 
     header, rows = read_tsv(args.report)
@@ -106,7 +110,8 @@ def main():
         "wetlab": {"min_mapped": args.wetlab_min_mapped,
                    "min_on_target": args.wetlab_min_on_target,
                    "min_quality": args.wetlab_min_quality,
-                   "min_families": args.wetlab_min_families},
+                   "min_families": args.wetlab_min_families,
+                   "min_target_share": args.wetlab_min_target_share},
     }
     # "</" must not appear inside the <script> element
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
