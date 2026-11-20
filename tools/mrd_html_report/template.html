@@ -13,8 +13,11 @@
   --header-bg:rgba(255,255,255,.72);
   --shadow:0 8px 30px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.05);
   --radius:14px; --sidebar-w:14em;
+  /* where the reads went: at target site / mapped elsewhere / not mapped (palette checked for colour vision deficiency) */
+  --c-site:#2a78d6; --c-else:#1baf7a; --c-unmap:#eb6834;
 }
 :root[data-theme="dark"] {
+  --c-site:#3987e5; --c-else:#199e70; --c-unmap:#d95926;
   --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --border:#38383a;
   --text:#f5f5f7; --muted:#98989d; --brand:#0a84ff;
   --pass:#30d158; --warn:#ff9f0a; --fail:#ff453a; --none:#636366; --grid:#2c2c2e;
@@ -227,6 +230,18 @@ div.summary li a.on { background:var(--surface-2); font-weight:600; }
 .chartbar { display:flex; gap:.6em; align-items:center; flex-wrap:wrap; margin:.2em 0 .6em; font-size:.82rem; color:var(--muted); }
 .chartbar label { display:inline-flex; gap:.35em; align-items:center; }
 .chart { width:100%; min-height:300px; position:relative; }
+.chart.auto { min-height:0; }
+.segbar { display:flex; gap:2px; height:28px; margin:.3em 0 .4em; }
+.segbar > div { border-radius:4px; min-width:2px; display:flex; align-items:center; padding:0 .5em; font-size:.75rem; font-weight:650; white-space:nowrap; overflow:hidden; cursor:default; }
+.segbar .s-site { background:var(--c-site); color:#fff; } .segbar .s-else { background:var(--c-else); color:#0b0b0b; } .segbar .s-unmap { background:var(--c-unmap); color:#0b0b0b; }
+.budget { margin:.3em 0 1.1em; } .budget h3 { font-size:.85rem; margin:0 0 .2em; }
+.key { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-1px; }
+.key.dot { border-radius:50%; } .key.line { height:2px; width:14px; border-radius:0; vertical-align:3px; }
+.chart .viol { fill:var(--brand); fill-opacity:.12; stroke:var(--brand); stroke-opacity:.5; stroke-width:1; }
+.chart circle.hit { stroke:none; }
+.chart .medtick { stroke:var(--text); stroke-width:3; stroke-linecap:round; opacity:.55; }
+.chart .rowlab { fill:var(--text); font-weight:600; }
+.chart .grouplab { fill:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
 .chart svg { display:block; width:100%; height:auto; overflow:visible; }
 .chart text { fill:var(--muted); font-size:calc(11px * var(--scale)); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
 .chart .gridline { stroke:var(--grid); stroke-width:1; }
@@ -703,6 +718,9 @@ __DATA__
 
   // ---- wet-lab verdict (information only: says whether sequencing, primers and library worked) ---
   var WL = D.wetlab || {};
+  // dot colours of the wet-lab verdict (status colours, always with a legend)
+  var WLCOL = {ok:'var(--pass)', check:'var(--warn)', repeat:'var(--fail)', na:'var(--none)'};
+  var WLNAME = {ok:'OK', check:'Check', repeat:'Repeat', na:'no data'};
   [['min_mapped', 0.5], ['min_on_target', 0.5], ['min_quality', 0.5], ['min_families', 0.1], ['min_target_share', 0.95]].forEach(function (d) { if (WL[d[0]] === undefined) WL[d[0]] = d[1]; });
   function wetlab(r) {
     var out = [], have = false;
@@ -750,8 +768,28 @@ __DATA__
         n0(fsite[1] - fsite[0]) + ' of ' + n0(fsite[1]) + ' reads; ' + nlow + ' sample' + (nlow === 1 ? '' : 's') + ' below ' + pct(WL.min_target_share) + ' at target</span></div>';
     }
     if (HAS_NOQC) t += tile(R.filter(noqcOnly).length, 'samples to repeat (found only without quality cutoffs)');
-    return t + '</div><p class="note">All reads = every demultiplexed read of the sample (both mates), before primer trimming and any filter. ' +
+    return t + '</div>' + runBudget() + '<p class="note">All reads = every demultiplexed read of the sample (both mates), before primer trimming and any filter. ' +
       'Read families = one consensus read per UMI family (one family = the read pairs with the same UMI and mapping position).</p></div>';
+  }
+  // where the reads of a sample went: at the target site, mapped elsewhere, not mapped (counts)
+  function fate(r) {
+    var a = num(g(r, 'ALL reads')), m = num(g(r, 'ALL mapped reads')), t = num(g(r, 'ALL reads at target site'));
+    if (a === null || m === null || t === null || !a) return null;
+    return {site:t, other:Math.max(0, m - t), unmap:Math.max(0, a - m), all:a};
+  }
+  var FATE = [{k:'site', label:'at the target site', cls:'s-site', col:'var(--c-site)'},
+              {k:'other', label:'mapped elsewhere (off-target products)', cls:'s-else', col:'var(--c-else)'},
+              {k:'unmap', label:'not mapped (primer dimers, adapters, other)', cls:'s-unmap', col:'var(--c-unmap)'}];
+  function fateLegend() { return '<div class="legend">' + FATE.map(function (f) { return '<span><span class="key" style="background:' + f.col + '"></span>' + esc(f.label) + '</span>'; }).join('') + '</div>'; }
+  // the run as one bar split into its three parts; a share is printed only where it fits
+  function runBudget() {
+    var s = {site:0, other:0, unmap:0, all:0}, k = 0;
+    R.forEach(function (r) { var f = fate(r); if (!f) return; k++; ['site', 'other', 'unmap', 'all'].forEach(function (x) { s[x] += f[x]; }); });
+    if (!k) return '';
+    return '<div class="budget"><h3>Where the reads of the run went <span class="sub">' + n0(s.all) + ' reads, ' + k + ' samples</span></h3>' +
+      '<div class="segbar" role="img" aria-label="' + FATE.map(function (f) { return f.label + ' ' + pct(s[f.k] / s.all); }).join(', ') + '">' +
+      FATE.map(function (f) { var sh = s[f.k] / s.all; return sh <= 0 ? '' : '<div class="' + f.cls + '" style="flex:' + sh.toFixed(5) + ' 1 0" title="' + esc(f.label) + ': ' + pct(sh) + ' (' + n0(s[f.k]) + ' reads)">' + (sh >= 0.06 ? pct(sh) : '') + '</div>'; }).join('') +
+      '</div>' + '<div class="legend">' + FATE.map(function (f) { return '<span><span class="key" style="background:' + f.col + '"></span>' + esc(f.label) + ': ' + pct(s[f.k] / s.all) + ' (' + n0(s[f.k]) + ')</span>'; }).join('') + '</div></div>';
   }
   var STAGES = [
     {id:'all_mapped', label:'mapped', color:'#8ec5ff'},
@@ -762,10 +800,9 @@ __DATA__
   function funnelModule() {
     if (!HAS_FUNNEL) return '';
     var st = STAGES.filter(function (x) { return MI[x.id] && M.indexOf(MI[x.id]) >= 0; });
-    var t = '<div class="module" id="funnel"><h2>Reads: sequenced to target site <span class="sub">share of all reads per sample, wet-lab quality</span></h2>' +
-      '<p class="note">Each bar is 100% of the reads sequenced for the sample (grey). The coloured bars show how many of them map, lie on the marker chromosome, cover the target site, and how many read families remain. Hover for numbers, click to open the sample.</p>' +
-      '<div class="chart" id="cf"></div><div class="legend"><span><span class="swatch f1"></span>all reads</span>' +
-      st.map(function (x) { return '<span><span class="swatch" style="background:' + x.color + '"></span>' + esc(x.label) + '</span>'; }).join('') + '</div>' +
+    var t = '<div class="module" id="funnel"><h2>Where the reads of each sample went <span class="sub">share of all reads per sample, wet-lab quality</span></h2>' +
+      '<p class="note">Each bar is 100% of the reads sequenced for the sample, split into reads at the target site, reads mapped elsewhere and reads that do not map. The dark line marks ' + pct(WL.min_target_share) + ' at the target site (wet-lab check). Hover for the counts, click to open the sample.</p>' +
+      fateLegend() + '<div class="chart auto" id="cf"></div>' +
       '<div class="tablewrap" style="margin-top:1em"><table><tr><th>Sample</th><th>H number</th><th>All reads</th><th>Mapped</th><th>On marker chromosome</th><th>At target site</th><th>Passing quality filter</th><th>Read families</th><th>Lost before mapping</th></tr>';
     ORDER.forEach(function (i) {
       var r = R[i];
@@ -805,7 +842,10 @@ __DATA__
     names.sort();
     var t = '<div class="module" id="primers"><h2>Primers <span class="sub">do the primers amplify the target</span></h2>' +
       '<p class="note">Per primer over its samples in this run: share of the mapped reads that cover the target site, and share of all reads that map. Low in every sample of a primer points to the primer; low in one sample points to that sample.</p>' +
-      '<div class="tablewrap"><table><tr><th>Primer</th><th>Samples</th><th>At target site / mapped (median)</th><th>Lowest sample</th><th>Mapped / all reads (median)</th><th>Wet lab</th></tr>';
+      '<p class="note">Dots: the share of all reads at the target site, one per sample, coloured by the wet-lab verdict; primers sorted from lowest to highest median; the dark line marks ' + pct(WL.min_target_share) + '. Click a primer name for its samples.</p>' +
+      '<div class="legend">' + ['ok', 'check', 'repeat'].map(function (k) { return '<span><span class="key dot" style="background:' + WLCOL[k] + '"></span>' + WLNAME[k] + '</span>'; }).join('') + '</div>' +
+      '<div class="chart auto" id="cprim"></div>' +
+      '<div class="tablewrap" style="margin-top:1em"><table><tr><th>Primer</th><th>Samples</th><th>At target site / mapped (median)</th><th>Lowest sample</th><th>Mapped / all reads (median)</th><th>Wet lab</th></tr>';
     names.forEach(function (p) {
       var idx = by[p], so = idx.map(function (i) { return mv('site_of_mapped', R[i]); }).filter(function (x) { return x !== null; });
       var ma = idx.map(function (i) { return mv('all_mapped', R[i]); }).filter(function (x) { return x !== null; });
@@ -840,7 +880,7 @@ __DATA__
   var HAS_FUNNEL = !!(MI.all_reads && MI.all_reads.col && M.indexOf(MI.all_reads) >= 0);
   var HAS_FAM = R.some(function (r) { return famTotal(r) !== null; });
   var navQC = '<div id="nav-qc" class="hidden"><h2>Wet-lab QC</h2><ul><li><a href="#qcsum">' + (HAS_FUNNEL ? 'Run summary and verdict per sample' : 'Run summary') + '</a></li>' + (HAS_FUNNEL ? '<li><a href="#primers">Primers</a></li>' : '') +
-    (HAS_FUNNEL ? '<li><a href="#funnel">Reads: sequenced to target site</a></li>' : '') +
+    (HAS_FUNNEL ? '<li><a href="#funnel">Where the reads went</a></li><li><a href="#dists">Distributions</a></li>' : '') +
     (HAS_FAM ? '<li><a href="#families">Read family sizes</a></li>' : '') +
     '<li><a href="#qctable">QC metrics</a></li><li><a href="#charts">Charts</a></li></ul></div>';
   var nav = navQC + '<div id="nav-results"><h2>Results</h2><ul>' +
@@ -867,7 +907,7 @@ __DATA__
     'Narrow windows hide the less important columns; all values are in the sample panel.</p>' +
     '<p class="note">Add columns to the table:</p><div class="colpick" id="colpick"></div></details></div>';
 
-  var qhtml = qcSummary() + wetlabModule() + primerModule() + funnelModule() + familyModule();
+  var qhtml = qcSummary() + wetlabModule() + primerModule() + funnelModule() + distModule() + familyModule();
   // general QC table
   qhtml += '<div class="module" id="qctable"><h2>QC metrics <span class="sub">per run, over all samples</span></h2>' +
     '<p class="note">Thresholds are the QC criteria of the workflow. "Below" lists the samples under the threshold; click one to open it.</p>' +
@@ -1206,16 +1246,123 @@ __DATA__
       g0.addEventListener('click', function () { hideTip(); goSample(i); });
     });
   }
+  // stacked bars: at target / mapped elsewhere / not mapped, one row per sample, 2px surface gap between parts
   function drawFunnel() {
-    if (!HAS_FUNNEL) return;
-    var st = STAGES.filter(function (x) { return MI[x.id] && M.indexOf(MI[x.id]) >= 0; });
-    hbars('cf', function (r) {
-      if (mv('all_reads', r) === null) return [];
-      return [{w:1, cls:'f1', color:'var(--grid)'}].concat(st.map(function (x) { return {w:mv(x.id, r), color:x.color}; }));
-    }, function (i) {
-      var r = R[i];
-      return tipHtml(i, ['all reads: <b>' + fmt(MI.all_reads, mv('all_reads', r)) + '</b>'].concat(st.map(function (x) { return esc(x.label) + ': <b>' + pct(mv(x.id, r)) + '</b>' + (fracText(x.id, r) ? ' (' + fracText(x.id, r) + ')' : ''); })));
+    var box = document.getElementById('cf'); if (!box || !HAS_FUNNEL) return; box.innerHTML = '';
+    var idx = ORDER.filter(function (i) { return visible(i) && fate(R[i]); });
+    var W = Math.max(box.clientWidth, 300), L = Math.round(118 * SC()), Rr = 12, rowH = Math.round(22 * Math.max(1, SC())), T = 6, Hh = T + idx.length * rowH + 24;
+    var svg = el('svg', {viewBox:'0 0 ' + W + ' ' + Hh}, box);
+    var x = function (v) { return L + Math.max(0, Math.min(1, v)) * (W - L - Rr); };
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) { el('line', {x1:x(v), x2:x(v), y1:T, y2:Hh - 20, 'class':'gridline'}, svg); var tt = el('text', {x:x(v), y:Hh - 6, 'text-anchor':'middle'}, svg); tt.textContent = (v * 100) + '%'; });
+    idx.forEach(function (i, k) {
+      var r = R[i], f = fate(r), y = T + k * rowH, bh = Math.min(rowH - 6, 16);
+      var lab = el('text', {x:L - 8, y:y + rowH / 2 + 4, 'text-anchor':'end'}, svg); lab.textContent = sampleKey(r) + '  ' + (C_PAT ? g(r, C_PAT) : '');
+      var g0 = el('g', {tabindex:'0', role:'img', 'aria-label':'sample ' + sampleKey(r) + ': ' + FATE.map(function (q) { return q.label + ' ' + pct(f[q.k] / f.all); }).join(', ')}, svg); g0.style.cursor = 'pointer';
+      el('rect', {x:L, y:y, width:W - L - Rr, height:rowH, fill:'transparent'}, g0);   // hit area: the whole row
+      var x0 = 0;
+      FATE.forEach(function (q, n) {
+        var w = f[q.k] / f.all; if (w <= 0) return;
+        var a = x(x0) + (n ? 1 : 0), b = x(x0 + w) - (n < FATE.length - 1 ? 1 : 0);
+        if (b > a) el('rect', {x:a, y:y + (rowH - bh) / 2, width:b - a, height:bh, rx:3, fill:q.col}, g0);
+        x0 += w;
+      });
+      function tip(e) { showTip(e, tipHtml(i, FATE.map(function (q) { return esc(q.label) + ': <b>' + pct(f[q.k] / f.all) + '</b> (' + n0(f[q.k]) + ' of ' + n0(f.all) + ')'; }))); }
+      g0.addEventListener('mousemove', tip); g0.addEventListener('focus', function () { var b = g0.getBoundingClientRect(); tip({clientX:b.left + b.width / 2, clientY:b.top}); }); g0.addEventListener('blur', hideTip);
+      g0.addEventListener('mouseleave', hideTip);
+      g0.addEventListener('click', function () { hideTip(); goSample(i); });
     });
+    var tx = x(WL.min_target_share);
+    el('line', {x1:tx, x2:tx, y1:T - 2, y2:Hh - 20, stroke:'var(--text)', 'stroke-width':1.5}, svg);
+  }
+  // distributions over the samples: violin (kernel density) with one dot per sample, coloured by the wet-lab state
+  function distRows() {
+    return [
+      {group:'Wet-lab quality, all reads before read family consensus'},
+      {id:'all_site_ratio', thr:WL.min_target_share}, {id:'all_mapped', thr:WL.min_mapped}, {id:'site_of_mapped', thr:WL.min_on_target},
+      {id:'fastp_pass', thr:WL.min_quality}, {id:'fam_all', thr:WL.min_families}, {id:'fam_single'},
+      {group:'Result QC, read families (consensus reads)'},
+      {id:'depth_fam'}, {id:'fam_mapped'}, {id:'on_target'}
+    ].filter(function (d) { return d.group || (MI[d.id] && M.indexOf(MI[d.id]) >= 0); });
+  }
+  function kde(vals, lo, hi, n) {
+    var sd = Math.sqrt(vals.reduce(function (a, v) { var m = vals.reduce(function (p, q) { return p + q; }, 0) / vals.length; return a + (v - m) * (v - m); }, 0) / Math.max(1, vals.length - 1));
+    var h = Math.max((hi - lo) / 60, 1.06 * (sd || (hi - lo) / 10) * Math.pow(vals.length, -0.2)), out = [];
+    for (var k = 0; k <= n; k++) { var x = lo + (hi - lo) * k / n, d = 0; vals.forEach(function (v) { var u = (x - v) / h; d += Math.exp(-0.5 * u * u); }); out.push([x, d]); }
+    var mx = Math.max.apply(null, out.map(function (p) { return p[1]; })) || 1;
+    return out.map(function (p) { return [p[0], p[1] / mx]; });
+  }
+  function drawDist() {
+    var box = document.getElementById('cdist'); if (!box) return; box.innerHTML = '';
+    var rows = distRows(), idx = ORDER.filter(function (i) { return visible(i); });
+    var W = Math.max(box.clientWidth, 300), narrow = W < 640, L = narrow ? 12 : Math.round(230 * SC()), Rr = 16;
+    var rowH = Math.round(54 * Math.max(1, SC())), labH = narrow ? 16 : 0, grpH = 26, Hh = 6;
+    rows.forEach(function (d) { Hh += d.group ? grpH : rowH + labH + 16; });
+    var svg = el('svg', {viewBox:'0 0 ' + W + ' ' + Hh}, box), y = 6;
+    rows.forEach(function (d) {
+      if (d.group) { var gt = el('text', {x:2, y:y + 17, 'class':'grouplab'}, svg); gt.textContent = d.group; y += grpH; return; }
+      var m = MI[d.id], thr = d.thr !== undefined ? d.thr : m.thr, lg = !!m.log && m.kind !== 'ratio';
+      var pts = idx.map(function (i) { return [i, mv(d.id, R[i])]; }).filter(function (p) { return p[1] !== null && (!lg || p[1] > 0); });
+      var lo = 0, hi = 1;
+      if (m.kind !== 'ratio') { var vs = pts.map(function (p) { return p[1]; }).concat(thr !== undefined ? [thr] : []); lo = Math.min.apply(null, vs) / 1.4; hi = Math.max.apply(null, vs) * 1.4; }
+      var sx = scale(lo, hi, L, W - Rr, lg), cy = y + labH + rowH / 2;
+      var lab = el('text', narrow ? {x:2, y:y + 12, 'class':'rowlab'} : {x:L - 10, y:cy + 4, 'text-anchor':'end', 'class':'rowlab'}, svg);
+      lab.textContent = m.label.replace(/ \(.*\)$/, '');
+      el('line', {x1:L, x2:W - Rr, y1:cy + rowH / 2 + 2, y2:cy + rowH / 2 + 2, 'class':'axis'}, svg);
+      (m.kind === 'ratio' ? [0, 0.25, 0.5, 0.75, 1] : ticks(sx, m)).forEach(function (v) { var xx = sx(v); var tt = el('text', {x:xx, y:cy + rowH / 2 + 14, 'text-anchor':'middle'}, svg); tt.textContent = m.kind === 'ratio' ? (v * 100) + '%' : tickLabel(m, v); el('line', {x1:xx, x2:xx, y1:cy - rowH / 2, y2:cy + rowH / 2 + 2, 'class':'gridline'}, svg); });
+      if (pts.length >= 3) {
+        var tv = pts.map(function (p) { return lg ? Math.log10(p[1]) : p[1]; }), klo = lg ? Math.log10(lo) : lo, khi = lg ? Math.log10(hi) : hi;
+        var dens = kde(tv, klo, khi, 80), hw = rowH / 2 - 3, up = [], dn = [];
+        dens.forEach(function (pq) { var xx = sx(lg ? Math.pow(10, pq[0]) : pq[0]); up.push(xx.toFixed(1) + ',' + (cy - pq[1] * hw).toFixed(1)); dn.unshift(xx.toFixed(1) + ',' + (cy + pq[1] * hw).toFixed(1)); });
+        el('path', {d:'M' + up.join('L') + 'L' + dn.join('L') + 'Z', 'class':'viol'}, svg);
+      }
+      if (thr !== undefined) { var tx = sx(thr); el('line', {x1:tx, x2:tx, y1:cy - rowH / 2, y2:cy + rowH / 2, stroke:'var(--text)', 'stroke-width':1.5}, svg); }
+      var md = median(pts.map(function (p) { return p[1]; }));
+      if (md !== null) { var mx2 = sx(md); el('line', {x1:mx2, x2:mx2, y1:cy - 7, y2:cy + 7, 'class':'medtick'}, svg); }
+      pts.forEach(function (p, k) {
+        var i = p[0], st = wetlab(R[i]).state, jit = ((k * 37) % 11 - 5) / 5 * (rowH / 2 - 9);
+        var gp = el('g', {tabindex:'0'}, svg); gp.style.cursor = 'pointer';
+        el('circle', {cx:sx(p[1]), cy:cy + jit, r:12, fill:'transparent', 'class':'hit'}, gp);
+        el('circle', {cx:sx(p[1]), cy:cy + jit, r:4.5, fill:WLCOL[st]}, gp);
+        function tip(e) { var fv = function (v) { return m.kind === 'ratio' ? pct(v) : fmt(m, v); }; showTip(e, tipHtml(i, [esc(m.label) + ': <b>' + fv(p[1]) + '</b>' + (fracText(d.id, R[i]) ? ' (' + fracText(d.id, R[i]) + ')' : '') + (thr !== undefined ? '; limit ' + fv(thr) : ''), 'wet lab: ' + WLNAME[st]])); }
+        gp.addEventListener('mousemove', tip); gp.addEventListener('mouseleave', hideTip); gp.addEventListener('blur', hideTip);
+        gp.addEventListener('focus', function () { var b = gp.getBoundingClientRect(); tip({clientX:b.left, clientY:b.top}); });
+        gp.addEventListener('click', function () { hideTip(); goSample(i); });
+      });
+      y += rowH + labH + 16;
+    });
+  }
+  function distModule() {
+    if (!HAS_FUNNEL) return '';
+    return '<div class="module" id="dists"><h2>Distributions over the samples <span class="sub">one dot per sample, coloured by the wet-lab verdict</span></h2>' +
+      '<p class="note">The shaded shape is the distribution of the run (wider = more samples with that value); the grey tick is the run median, the dark line the limit. Hover a dot for the sample and its counts, click to open it.</p>' +
+      '<div class="legend">' + ['ok', 'check', 'repeat'].map(function (k) { return '<span><span class="key dot" style="background:' + WLCOL[k] + '"></span>' + WLNAME[k] + '</span>'; }).join('') +
+      '<span><span class="key line" style="background:var(--text)"></span>limit</span><span><span class="key line" style="background:var(--text);opacity:.55;height:3px"></span>run median</span></div>' +
+      '<div class="chart auto" id="cdist"></div></div>';
+  }
+  // per primer: one dot per sample at its share of reads at the target site
+  function drawPrimDots() {
+    var box = document.getElementById('cprim'); if (!box) return; box.innerHTML = '';
+    var by = {}, names = [];
+    ORDER.filter(function (i) { return visible(i); }).forEach(function (i) { var p = g(R[i], 'Primer'), v = mv('all_site_ratio', R[i]); if (isNA(p) || v === null) return; if (!by[p]) { by[p] = []; names.push(p); } by[p].push([i, v]); });
+    names.sort(function (a, b) { return median(by[a].map(function (q) { return q[1]; })) - median(by[b].map(function (q) { return q[1]; })); });
+    var W = Math.max(box.clientWidth, 300), L = Math.round((W < 640 ? 120 : 190) * SC()), Rr = 14, rowH = Math.round(24 * Math.max(1, SC())), T = 6, Hh = T + names.length * rowH + 24;
+    var svg = el('svg', {viewBox:'0 0 ' + W + ' ' + Hh}, box);
+    var x = function (v) { return L + Math.max(0, Math.min(1, v)) * (W - L - Rr); };
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) { el('line', {x1:x(v), x2:x(v), y1:T, y2:Hh - 20, 'class':'gridline'}, svg); var tt = el('text', {x:x(v), y:Hh - 6, 'text-anchor':'middle'}, svg); tt.textContent = (v * 100) + '%'; });
+    names.forEach(function (p, k) {
+      var y = T + k * rowH + rowH / 2, lab = el('text', {x:L - 8, y:y + 4, 'text-anchor':'end'}, svg); lab.textContent = p;
+      lab.style.cursor = 'pointer'; lab.addEventListener('click', function () { primerInfo(p); });
+      el('line', {x1:L, x2:W - Rr, y1:y, y2:y, 'class':'gridline'}, svg);
+      by[p].forEach(function (q) {
+        var i = q[0], st = wetlab(R[i]).state, gp = el('g', {tabindex:'0'}, svg); gp.style.cursor = 'pointer';
+        el('circle', {cx:x(q[1]), cy:y, r:12, fill:'transparent', 'class':'hit'}, gp);
+        el('circle', {cx:x(q[1]), cy:y, r:5, fill:WLCOL[st], stroke:'var(--surface)', 'stroke-width':2}, gp);
+        function tip(e) { showTip(e, tipHtml(i, ['at the target site / all reads: <b>' + pct(q[1]) + '</b> (' + fracText('all_site_ratio', R[i]) + ')', 'wet lab: ' + WLNAME[st]])); }
+        gp.addEventListener('mousemove', tip); gp.addEventListener('mouseleave', hideTip);
+        gp.addEventListener('click', function () { hideTip(); goSample(i); });
+      });
+    });
+    var tx = x(WL.min_target_share); el('line', {x1:tx, x2:tx, y1:T - 2, y2:Hh - 20, stroke:'var(--text)', 'stroke-width':1.5}, svg);
   }
   var FCOL = ['#c7c7cc', '#8ec5ff', '#4ea1f5', '#1e7ae0', '#0f5bb5', '#0a3d7a'];
   function drawFam() {
@@ -1231,11 +1378,11 @@ __DATA__
   }
   var VIEW = 'results';
   function SC() { return SCALE || 1; }   // chart margins follow the font size
-  function drawCharts() { if (VIEW === 'qc' && document.getElementById('c1')) { drawStrip(); drawScatter(); drawFunnel(); drawFam(); } }
+  function drawCharts() { if (VIEW === 'qc' && document.getElementById('c1')) { drawStrip(); drawScatter(); drawFunnel(); drawFam(); drawDist(); drawPrimDots(); } }
   // ---- sections: the centre panel shows only the selected section --------------------------------
   // Results: overview (run overview, all patients) | decision | noqc | corr | all | p<k> (one patient)
   // Wet-lab QC: qcsum (run summary, verdict per sample) | primers | funnel | families | qctable | charts
-  var QC_IDS = {qc:1, qcsum:1, wetlab:1, primers:1, funnel:1, families:1, qctable:1, charts:1};
+  var QC_IDS = {qc:1, qcsum:1, wetlab:1, primers:1, funnel:1, dists:1, families:1, qctable:1, charts:1};
   var SEC_OF = {wetlab:'qcsum', results:'overview', qc:'qcsum'};
   var SEC = 'overview';
   function secOf(id) { return SEC_OF[id] || (document.getElementById(id) ? id : 'overview'); }
