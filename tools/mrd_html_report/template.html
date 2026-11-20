@@ -387,7 +387,7 @@ __DATA__
     {id:'all_reads', label:'All reads', cols:['ALL reads'], kind:'count', log:true},
     {id:'all_mapped', label:'Mapped / all reads', cols:['ALL mapped / all reads'], kind:'ratio'},
     {id:'all_chrom', label:'On marker chromosome / all reads', cols:['ALL on marker chromosome / all reads'], kind:'ratio'},
-    {id:'all_site', label:'Reads at the target site, all reads (before deduplication)', cols:['ALL reads at target site'], kind:'count', log:true},
+    {id:'all_site', label:'Reads at the target site, all reads (before read family consensus)', cols:['ALL reads at target site'], kind:'count', log:true},
     {id:'all_site_ratio', label:'At target site / all reads', cols:['ALL at target site / all reads'], kind:'ratio'},
     {id:'site_of_mapped', label:'At target site / mapped reads (primer specificity)', derive:function (r) { var a = num(g(r, 'ALL reads at target site')), b = num(g(r, 'ALL mapped reads')); return (a !== null && b) ? a / b : null; }, kind:'ratio'},
     {id:'fastp_pass', label:'Passing fastp quality filter / all reads', cols:['UMI branch reads after fastp / all reads'], kind:'ratio'},
@@ -395,15 +395,15 @@ __DATA__
     {id:'fam_mean', label:'Mean read pairs per family', cols:['FAMILY mean size'], kind:'x'},
     {id:'fam_single', label:'Singleton families (1 read pair) / families', derive:function (r) { var t = famTotal(r); var a = num(g(r, 'FAMILY size 1')); return (t && a !== null) ? a / t : null; }, kind:'ratio'},
     {id:'all_lost', label:'Lost before mapping (trimming, length) / all reads', cols:['ALL reads lost before mapping / all reads'], kind:'ratio'},
-    {id:'fam_reads', label:'Read families (deduplicated reads)', cols:['FAMILY_BAM total reads (read families)', 'Total records'], kind:'count', log:true},
+    {id:'fam_reads', label:'Read families (consensus reads)', cols:['FAMILY_BAM total reads (read families)', 'Total records'], kind:'count', log:true},
     {id:'raw_reads', label:'Reads after the fastp filter (UMI branch)', cols:['RAW_BAM total reads'], kind:'count', log:true},
     {id:'per_family', label:'Filtered reads per read family', derive:function (r) { var a = mv('raw_reads', r), b = mv('fam_reads', r); return (a !== null && b) ? a / b : null; }, kind:'x', log:false},
     {id:'fam_mapped', label:'Mapped / total, read families (no unmapped reads by design)', cols:['FAMILY_BAM mapped/total', 'mapped/total'], kind:'ratio', thr:0.8},
     {id:'raw_mapped', label:'Mapped / reads after the fastp filter', cols:['RAW_BAM mapped/total'], kind:'ratio'},
     {id:'on_target', label:'On marker chromosome / mapped, read families', cols:['idxstats Chromosome mapped / idxstats sum mapped'], kind:'ratio', thr:0.95},
     {id:'on_target_all', label:'On marker chromosome / total, read families', cols:['idxstats Chromosome mapped / total reads'], kind:'ratio'},
-    {id:'depth_fam', short:'read families at the target site', label:'Reads at the target site, read families (after deduplication; QC criterion)', cols:['TRIMMED_depth', 'DP'], kind:'count', thr:200000, log:true},
-    {id:'depth_raw', label:'Depth at the marker, all reads (bam-readcount, before deduplication)', cols:['RAW_depth'], kind:'count', log:true},
+    {id:'depth_fam', short:'read families at the target site', label:'Reads at the target site, read families (consensus reads; QC criterion)', cols:['TRIMMED_depth', 'DP'], kind:'count', thr:200000, log:true},
+    {id:'depth_raw', label:'Depth at the marker, all reads (bam-readcount, before read family consensus)', cols:['RAW_depth'], kind:'count', log:true},
     {id:'vaf', label:'VAF of the marker call', cols:['AF'], kind:'pct', thr:0.001, log:true},
     {id:'vaf_noqc', label:'VAF of the marker call without quality cutoffs', cols:['No quality cutoffs: AF'], kind:'pct', log:true}
   ];
@@ -594,22 +594,22 @@ __DATA__
     ['Without quality cutoffs (second read-family branch)', /quality cutoffs/],
     ['QC criteria', /(greater equal|VarDict QC|Sequencing depth|Alt base quality|ratio greater|PHREAD|low-quality evidence)/i],
     ['FLT3', /^FLT3_/],
-    ['Read families after UMI deduplication (basis of the result)', /^FAMILY_BAM|^target chromosome|^idxstats|^Total records|^Unmapped reads|^mapq|^unmapped\/total|^mapped\/total|^Chromosome|^Mapped Reads/],
-    ['All reads before deduplication and quality filter (wet-lab information)', /^ALL |^UMI branch reads after fastp/],
+    ['Read families, consensus reads (basis of the result)', /^FAMILY_BAM|^target chromosome|^idxstats|^Total records|^Unmapped reads|^mapq|^unmapped\/total|^mapped\/total|^Chromosome|^Mapped Reads/],
+    ['All reads before read family consensus and quality filter (wet-lab information)', /^ALL |^UMI branch reads after fastp/],
     ['Reads after the fastp filter (UMI branch)', /^RAW_BAM/],
     ['Read counts at the marker, read families (basis of the result)', /^TRIMMED_/],
-    ['Read counts at the marker, all reads before deduplication', /^RAW_(reference|depth|[ACGTN]_)/],
+    ['Read counts at the marker, all reads before read family consensus', /^RAW_(reference|depth|[ACGTN]_)/],
     ['Barcodes and status', /^(MID_F|MID_R|primer|pipeline_status|physician_review|Decision)/i]
   ];
   var SKIP = {'sample':1, 'PatientId':1, 'Mutation detected':1};
-  // metrics on the read families (after UMI deduplication) decide the result; the others describe all reads
+  // metrics on the read families (UMI consensus reads) decide the result; the others describe all reads
   // the decisive values first: depth and VAF at the marker, then mapping and family statistics
   var FAM_ORDER = ['depth_fam', 'vaf', 'vaf_noqc', 'fam_mapped', 'on_target', 'on_target_all', 'fam_reads', 'fam_all', 'fam_mean', 'fam_single'];
   var FAM_IDS = {fam_reads:1, fam_mapped:1, on_target:1, on_target_all:1, depth_fam:1, fam_mean:1, fam_single:1, fam_all:1, vaf:1, vaf_noqc:1};
   function qcBars(r) {
-    return '<div class="basis fam"><h4>Read families, after UMI deduplication <span>basis of the result: each DNA molecule counts once</span></h4>' +
+    return '<div class="basis fam"><h4>Read families, consensus reads <span>basis of the result: each DNA molecule counts once</span></h4>' +
       qcBarRows(r, function (m) { return FAM_IDS[m.id]; }, FAM_ORDER) + '</div>' +
-      '<div class="basis all"><h4>All reads, before deduplication <span>wet-lab information only: a molecule read several times counts several times</span></h4>' +
+      '<div class="basis all"><h4>All reads, before read family consensus <span>wet-lab information only: a molecule read several times counts several times</span></h4>' +
       qcBarRows(r, function (m) { return !FAM_IDS[m.id]; }) + '</div>';
   }
   function qcBarRows(r, keep, order) {
@@ -751,7 +751,7 @@ __DATA__
     }
     if (HAS_NOQC) t += tile(R.filter(noqcOnly).length, 'samples to repeat (found only without quality cutoffs)');
     return t + '</div><p class="note">All reads = every demultiplexed read of the sample (both mates), before primer trimming and any filter. ' +
-      'Read families = UMI families after deduplication (one family = the read pairs with the same UMI and mapping position).</p></div>';
+      'Read families = one consensus read per UMI family (one family = the read pairs with the same UMI and mapping position).</p></div>';
   }
   var STAGES = [
     {id:'all_mapped', label:'mapped', color:'#8ec5ff'},
