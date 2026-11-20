@@ -380,7 +380,7 @@ __DATA__
     {id:'all_reads', label:'All reads', cols:['ALL reads'], kind:'count', log:true},
     {id:'all_mapped', label:'Mapped / all reads', cols:['ALL mapped / all reads'], kind:'ratio'},
     {id:'all_chrom', label:'On marker chromosome / all reads', cols:['ALL on marker chromosome / all reads'], kind:'ratio'},
-    {id:'all_site', label:'Reads at the target site (all reads)', cols:['ALL reads at target site'], kind:'count', log:true},
+    {id:'all_site', label:'Reads at the target site, all reads (before deduplication)', cols:['ALL reads at target site'], kind:'count', log:true},
     {id:'all_site_ratio', label:'At target site / all reads', cols:['ALL at target site / all reads'], kind:'ratio'},
     {id:'site_of_mapped', label:'At target site / mapped reads (primer specificity)', derive:function (r) { var a = num(g(r, 'ALL reads at target site')), b = num(g(r, 'ALL mapped reads')); return (a !== null && b) ? a / b : null; }, kind:'ratio'},
     {id:'fastp_pass', label:'Passing fastp quality filter / all reads', cols:['UMI branch reads after fastp / all reads'], kind:'ratio'},
@@ -395,8 +395,8 @@ __DATA__
     {id:'raw_mapped', label:'Mapped / reads after the fastp filter', cols:['RAW_BAM mapped/total'], kind:'ratio'},
     {id:'on_target', label:'On marker chromosome / mapped, read families', cols:['idxstats Chromosome mapped / idxstats sum mapped'], kind:'ratio', thr:0.95},
     {id:'on_target_all', label:'On marker chromosome / total, read families', cols:['idxstats Chromosome mapped / total reads'], kind:'ratio'},
-    {id:'depth_fam', label:'Reads at the target site, read families', cols:['TRIMMED_depth', 'DP'], kind:'count', thr:200000, log:true},
-    {id:'depth_raw', label:'Depth at the marker, all reads', cols:['RAW_depth'], kind:'count', log:true},
+    {id:'depth_fam', short:'read families at the target site', label:'Reads at the target site, read families (after deduplication; QC criterion)', cols:['TRIMMED_depth', 'DP'], kind:'count', thr:200000, log:true},
+    {id:'depth_raw', label:'Depth at the marker, all reads (bam-readcount, before deduplication)', cols:['RAW_depth'], kind:'count', log:true},
     {id:'vaf', label:'VAF of the marker call', cols:['AF'], kind:'pct', thr:0.001, log:true},
     {id:'vaf_noqc', label:'VAF of the marker call without quality cutoffs', cols:['No quality cutoffs: AF'], kind:'pct', log:true}
   ];
@@ -485,7 +485,7 @@ __DATA__
     if (c === 'qc' && primerOutside(r)) out.push(primerText(st));
     if (c === 'qc' && g(r, 'Low-quality evidence at marker') === 'TRUE') out.push('marker signal present but below the quality cutoffs' + (isNA(g(r, 'Low-quality evidence detail')) ? '' : ': ' + g(r, 'Low-quality evidence detail')));
     if (c === 'qc' && noqcOnly(r)) out.push(noqcReason(r));
-    if (c === 'qc') QCM.forEach(function (m) { if (below(m, r)) out.push(m.label.toLowerCase() + ' ' + fmt(m, mv(m.id, r)) + ' below ' + fmt(m, m.thr)); });
+    if (c === 'qc') QCM.forEach(function (m) { if (below(m, r)) out.push((m.short || m.label.toLowerCase()) + ' ' + fmt(m, mv(m.id, r)) + ' below ' + fmt(m, m.thr)); });
     if (c === 'qc' && !review(r)) {
       // every other failed criterion, so a red sample lists all its reasons (a sample for physician review lists
       // them in its review text below). Not repeated: the thresholds above, VAF and VarDict of a sample without
@@ -561,7 +561,7 @@ __DATA__
     {h:'Marker', f:function (r) { return esc(g(r, 'DNAPosition')); }, c:'mk'},
     {h:'Result', f:mdBadge, c:'nw'},
     {h:'Reason', f:function (r) { var w = reasons(r); return '<span title="' + esc(w.join('\n')) + '">' + shortReasons(r).map(esc).join('<br>') + '</span>'; }, c:'why'},
-    {h:'VAF', m:'vaf'}, {h:'VAF without quality cutoffs', m:'vaf_noqc', p:'p3'}, {h:'Depth', m:'depth_fam', p:'p2'},
+    {h:'VAF', m:'vaf'}, {h:'VAF without quality cutoffs', m:'vaf_noqc', p:'p3'}, {h:'Depth (read families)', m:'depth_fam', p:'p2'},
     {h:'Mapped', m:'fam_mapped', p:'p3'}, {h:'On target', m:'on_target', p:'p3'},
     {h:'Match', f:function (r) { return esc(g(r, 'marker_match_type')); }, c:'nw', p:'p3'},
     {h:'Wet lab', f:wlBadge, p:'p3'},
