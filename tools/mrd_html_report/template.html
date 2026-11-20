@@ -100,11 +100,18 @@ body.panelopen #panel { display:block; }
 .stat[data-f].on { border-color:var(--brand); }
 .stats.compact .stat { padding:.4em .9em; min-width:7em; }
 .stats.compact .stat b { font-size:1.25rem; display:inline; margin-right:.3em; }
-table.st td.txt { overflow-wrap:normal; word-break:normal; white-space:nowrap; }
+table.st td.txt, td.pr { overflow-wrap:normal; word-break:normal; white-space:nowrap; }
+td.pr { white-space:normal; }
 table.st td.mk { min-width:9em; max-width:16em; overflow-wrap:anywhere; }
 table.st td.why { min-width:20em; }
 tr.row.sel td { background:rgba(0,113,227,.10); }
-@media (max-width:1250px) { .p3 { display:none; } }
+@media (max-width:1500px) {
+  .p3 { display:none; }
+  /* medium screens: numbers and counts may wrap so that every table fits the page */
+  div.main td.num, div.main .cnt { white-space:normal; overflow-wrap:normal; word-break:normal; }
+  table.st td.txt { white-space:normal; }
+  td.why { min-width:12em; } table.st td.why { min-width:14em; }
+}
 @media (max-width:760px) { .p2 { display:none; } body:not(.qcview) .tools button.chip[data-f] { display:none; } }
 div.module {
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
@@ -128,12 +135,18 @@ p.note { color:var(--muted); font-size:.82rem; margin:.1em 0 .9em; max-width:95c
 .stat b { display:block; font-size:1.5rem; font-variant-numeric:tabular-nums; }
 .stat span { color:var(--muted); font-size:.78rem; }
 /* tables scroll inside their box, the column headers stay visible */
-.tablewrap { overflow:auto; max-height:max(60vh, calc(100vh - var(--hdr) - 2.5rem)); overscroll-behavior:contain; }
+/* tables grow with the page (page scroll, no scroll box); headers stick below the page header.
+   Only the table of all columns, wider than any screen, scrolls sideways in its box. */
+.tablewrap { overflow:visible; }
+#alltable.tablewrap { overflow-x:auto; }
+#alltable th { top:0; }
+/* reason column without any text in the rows shown: no reserved width */
+table.noreason td.why, table.noreason th.why { min-width:0; width:1%; }
 table { border-collapse:collapse; width:100%; font-size:.85rem; border:1px solid var(--border); }
 th {
   background:var(--surface-2); color:var(--muted); text-align:left; text-transform:uppercase;
   font-size:.68rem; letter-spacing:.04em; font-weight:700; padding:.55em .8em; border-bottom:1px solid var(--border);
-  position:sticky; top:0; z-index:2; box-shadow:0 1px 0 var(--border);
+  position:sticky; top:var(--hdr); z-index:2; box-shadow:0 1px 0 var(--border);
 }
 th.sort { cursor:pointer; white-space:nowrap; } th.sort:hover { color:var(--brand); }
 td {
@@ -142,8 +155,10 @@ td {
 }
 td.nw { white-space:nowrap; }
 td.why { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-size:.8rem; min-width:16em; }
-td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; overflow-wrap:normal; }
 td.low { color:var(--fail); font-weight:700; }
+.cnt { display:block; color:var(--muted); font-size:.72rem; font-weight:400; white-space:nowrap; }
+.stat .cnt { margin-top:.15em; }
 tr.row { cursor:pointer; }
 tr.row:hover td, tr.row.hl td { background:var(--surface-2); }
 tr.detail > td { background:var(--surface-2); padding:1em 1.2em; }
@@ -172,7 +187,7 @@ table.wide td:first-child { background:var(--surface); }
 .kv { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:.15em .8em; font-size:.8rem; }
 .kv .k { color:var(--muted); overflow-wrap:anywhere; }
 .kv .v { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; }
-.qcbars { display:grid; grid-template-columns:minmax(10em,16em) minmax(0,1fr) 6.5em; gap:.25em .8em; align-items:center; font-size:.78rem; }
+.qcbars { display:grid; grid-template-columns:minmax(10em,16em) minmax(0,1fr) 10.5em; gap:.25em .8em; align-items:center; font-size:.78rem; }
 .qcbars .k { color:var(--muted); }
 .qcbars .track { position:relative; height:10px; background:var(--grid); border-radius:5px; }
 .qcbars .fill { position:absolute; left:0; top:0; bottom:0; border-radius:5px; background:var(--brand); }
@@ -220,6 +235,8 @@ button#navtoggle {
 button#navtoggle .chev { margin-left:auto; color:var(--muted); }
 @media (max-width:1100px) {
   div.header { position:static; padding:.6em 1em; }
+  div.main .tablewrap { overflow-x:auto; }
+  th { top:0; }
   #panel { top:0; }
   /* narrow screens: the contents and patient list fold into a bar above the content, closed by default */
   div.summary { position:static; width:auto; height:auto; margin:0 .8em .8em; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); display:none; }
@@ -268,6 +285,8 @@ __DATA__
   var NS = 'http://www.w3.org/2000/svg';
   function col(n) { return H.indexOf(n); }
   function g(r, n) { var i = col(n); return i < 0 ? '' : (r[i] === undefined ? '' : r[i]); }
+  // names like CEBPA_NGS_215_278 break only after an underscore
+  function wb(s) { return esc(s).replace(/_/g, '_<wbr>'); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function isNA(v) { return v === undefined || v === '' || v === 'NA' || v === '.'; }
   function num(v) { if (isNA(v)) return null; var x = parseFloat(v); return isFinite(x) ? x : null; }
@@ -361,6 +380,43 @@ __DATA__
     {id:'vaf', label:'VAF of the marker call', cols:['AF'], kind:'pct', thr:0.001, log:true},
     {id:'vaf_noqc', label:'VAF of the marker call without quality cutoffs', cols:['No quality cutoffs: AF'], kind:'pct', log:true}
   ];
+  // absolute numbers behind each ratio: numerator and denominator columns (or functions) of the report
+  var FR = {
+    all_mapped: {n:'ALL mapped reads', d:'ALL reads'},
+    all_chrom: {n:'ALL reads on marker chromosome', d:'ALL reads'},
+    all_site_ratio: {n:'ALL reads at target site', d:'ALL reads'},
+    site_of_mapped: {n:'ALL reads at target site', d:'ALL mapped reads'},
+    fastp_pass: {n:'RAW_BAM total reads', d:'ALL reads', nl:'reads after the fastp filter (UMI branch)'},
+    fam_all: {n:'FAMILY_BAM total reads (read families)', d:'ALL reads', nl:'read families'},
+    fam_single: {n:'FAMILY size 1', d:function (r) { return famTotal(r); }, dl:'families (sum of all sizes)'},
+    fam_mapped: {n:'FAMILY_BAM mapped unique (mapq>=cut)', d:'FAMILY_BAM total reads (read families)', nl:'read families mapped with MAPQ >= 30', dl:'read families'},
+    raw_mapped: {n:'RAW_BAM mapped reads', d:'RAW_BAM total reads'},
+    on_target: {n:'FAMILY_BAM mapped reads on target chromosome', d:'idxstats sum mapped', nl:'read families on the marker chromosome', dl:'mapped read families (idxstats)'},
+    on_target_all: {n:'FAMILY_BAM mapped reads on target chromosome', d:function (r) { var a = num(g(r, 'idxstats sum mapped')), b = num(g(r, 'idxstats sum unmapped')); return a === null ? null : a + (b || 0); }, nl:'read families on the marker chromosome', dl:'read families (idxstats mapped + unmapped)'},
+    per_family: {n:'RAW_BAM total reads', d:'FAMILY_BAM total reads (read families)'}
+  };
+  function frv(x, r) { return typeof x === 'function' ? x(r) : num(g(r, x)); }
+  // [numerator, denominator] of a ratio metric for one sample, or null when the counts are not in the table
+  function frac(id, r) {
+    var f = FR[id]; if (!f) return null;
+    var a = frv(f.n, r), b = frv(f.d, r);
+    return (a === null || b === null || b === undefined) ? null : [a, b];
+  }
+  function n0(x) { return Math.round(x).toLocaleString('en-US'); }
+  function fracText(id, r) { var f = frac(id, r); return f ? n0(f[0]) + ' of ' + n0(f[1]) : ''; }
+  function cnt(id, r) { var t = fracText(id, r); return t ? '<span class="cnt">' + t + '</span>' : ''; }
+  // what a ratio is computed from, in words (QC metrics table)
+  function fracDesc(id) {
+    var f = FR[id]; if (!f) return '';
+    function nm(x, l) { return l || (typeof x === 'string' ? x : ''); }
+    return nm(f.n, f.nl) + ' / ' + nm(f.d, f.dl);
+  }
+  // run total of numerator and denominator over all samples with both
+  function fracSum(id) {
+    var a = 0, b = 0, k = 0;
+    R.forEach(function (r) { var f = frac(id, r); if (f) { a += f[0]; b += f[1]; k++; } });
+    return k ? [a, b] : null;
+  }
   var FBINS = ['FAMILY size 1', 'FAMILY size 2', 'FAMILY size 3', 'FAMILY size 4-5', 'FAMILY size 6-10', 'FAMILY size >10'];
   function famTotal(r) { var t = 0, any = false; FBINS.forEach(function (b) { var x = num(g(r, b)); if (x !== null) { t += x; any = true; } }); return any ? t : null; }
   var MI = {};
@@ -481,7 +537,7 @@ __DATA__
   var BASE = [
     {h:'Sample', f:function (r) { return esc(sampleKey(r)); }, c:'nw'},
     {h:'H number', f:function (r) { return esc(C_PAT ? g(r, C_PAT) : ''); }, c:'nw', p:'p2'},
-    {h:'Primer', f:function (r) { return esc(g(r, 'Primer')); }, c:'txt', p:'p2'},
+    {h:'Primer', f:function (r) { return wb(g(r, 'Primer')); }, c:'txt', p:'p2'},
     {h:'Marker', f:function (r) { return esc(g(r, 'DNAPosition')); }, c:'mk'},
     {h:'Result', f:mdBadge, c:'nw'},
     {h:'Reason', f:function (r) { var w = reasons(r); return '<span title="' + esc(w.join('\n')) + '">' + shortReasons(r).map(esc).join('<br>') + '</span>'; }, c:'why'},
@@ -528,7 +584,7 @@ __DATA__
         '<div class="fill' + (below(m, r) ? ' low' : '') + '" style="width:' + Math.max(0, Math.min(100, pos(x))).toFixed(1) + '%"></div>' +
         (m.thr !== undefined ? '<div class="thr" style="left:' + Math.max(0, Math.min(100, pos(m.thr))).toFixed(1) + '%"></div>' : '') +
         (MED[m.id] !== null ? '<div class="med" style="left:' + Math.max(0, Math.min(100, pos(MED[m.id]))).toFixed(1) + '%"></div>' : '') +
-        '</div><div class="v' + (below(m, r) ? ' low' : '') + '">' + fmt(m, x) + '</div>';
+        '</div><div class="v' + (below(m, r) ? ' low' : '') + '">' + fmt(m, x) + cnt(m.id, r) + '</div>';
     });
     return out + '</div>';
   }
@@ -592,7 +648,7 @@ __DATA__
   var WL = D.wetlab || {min_mapped:0.5, min_on_target:0.5, min_quality:0.5, min_families:0.1};
   function wetlab(r) {
     var out = [], have = false;
-    function chk(id, lim, text) { var x = mv(id, r); if (x === null) return; have = true; if (x < lim) out.push(text + ' (' + pct(x) + ' < ' + pct(lim) + ')'); }
+    function chk(id, lim, text) { var x = mv(id, r); if (x === null) return; have = true; var c = fracText(id, r); if (x < lim) out.push(text + ' (' + pct(x) + (c ? ', ' + c : '') + ' < ' + pct(lim) + ')'); }
     chk('all_mapped', WL.min_mapped, 'much of the sequencing output does not map (adapter or primer dimers, contamination)');
     chk('site_of_mapped', WL.min_on_target, 'primers amplify off target: few mapped reads at the target site');
     chk('fastp_pass', WL.min_quality, 'low sequencing quality: few reads pass the quality filter');
@@ -605,16 +661,16 @@ __DATA__
 
   // ---- QC tab builders ---------------------------------------------------------------------------
   function pct(x) { return x === null ? 'NA' : (x * 100).toFixed(1) + '%'; }
-  function tile(v, label) { return '<div class="stat"><b>' + v + '</b><span>' + label + '</span></div>'; }
+  function tile(v, label, id) { var fs = id ? fracSum(id) : null; return '<div class="stat"><b>' + v + '</b><span>' + label + '</span>' + (fs ? '<span class="cnt">run: ' + n0(fs[0]) + ' of ' + n0(fs[1]) + '</span>' : '') + '</div>'; }
   function medOf(id) { var m = MI[id]; return (m && M.indexOf(m) >= 0) ? MED[id] : null; }
   function qcSummary() {
-    var t = '<div class="module" id="qcsum"><h2>Run summary <span class="sub">medians over ' + R.length + ' samples</span></h2><div class="stats">';
+    var t = '<div class="module" id="qcsum"><h2>Run summary <span class="sub">medians over ' + R.length + ' samples; under each: the run total, numerator of all samples of total</span></h2><div class="stats">';
     if (medOf('all_reads') !== null) t += tile(fmt(MI.all_reads, medOf('all_reads')), 'all reads sequenced');
-    if (medOf('all_mapped') !== null) t += tile(pct(medOf('all_mapped')), 'mapped / all reads');
-    if (medOf('all_site_ratio') !== null) t += tile(pct(medOf('all_site_ratio')), 'at the target site / all reads');
-    if (medOf('fastp_pass') !== null) t += tile(pct(medOf('fastp_pass')), 'passing the quality filter');
-    if (medOf('fam_all') !== null) t += tile(pct(medOf('fam_all')), 'read families / all reads');
-    if (medOf('fam_single') !== null) t += tile(pct(medOf('fam_single')), 'singleton families');
+    if (medOf('all_mapped') !== null) t += tile(pct(medOf('all_mapped')), 'mapped / all reads', 'all_mapped');
+    if (medOf('all_site_ratio') !== null) t += tile(pct(medOf('all_site_ratio')), 'at the target site / all reads', 'all_site_ratio');
+    if (medOf('fastp_pass') !== null) t += tile(pct(medOf('fastp_pass')), 'passing the quality filter', 'fastp_pass');
+    if (medOf('fam_all') !== null) t += tile(pct(medOf('fam_all')), 'read families / all reads', 'fam_all');
+    if (medOf('fam_single') !== null) t += tile(pct(medOf('fam_single')), 'singleton families', 'fam_single');
     if (medOf('fam_mean') !== null) t += tile(fmt(MI.fam_mean, medOf('fam_mean')), 'read pairs per family');
     if (HAS_FUNNEL) { var nw = R.filter(function (r) { return wetlab(r).state === 'check'; }).length; t += tile(nw, 'samples to check (wet lab)'); }
     if (HAS_NOQC) t += tile(R.filter(noqcOnly).length, 'samples to repeat (found only without quality cutoffs)');
@@ -641,7 +697,7 @@ __DATA__
       t += '<tr class="row" data-i="' + i + '"><td>' + esc(sampleKey(r)) + '</td><td class="nw">' + esc(C_PAT ? g(r, C_PAT) : '') + '</td>' +
         '<td class="num">' + fmt(MI.all_reads, mv('all_reads', r)) + '</td>' +
         c2('ALL mapped reads', 'all_mapped') + c2('ALL reads on marker chromosome', 'all_chrom') + c2('ALL reads at target site', 'all_site_ratio', MI.all_site && below(MI.all_site, r)) +
-        '<td class="num">' + pct(mv('fastp_pass', r)) + '</td>' +
+        '<td class="num">' + pct(mv('fastp_pass', r)) + cnt('fastp_pass', r) + '</td>' +
         '<td class="num">' + fmt(MI.fam_reads, mv('fam_reads', r)) + (mv('fam_all', r) === null ? '' : ' (' + pct(mv('fam_all', r)) + ')') + '</td>' +
         '<td class="num">' + pct(mv('all_lost', r)) + '</td></tr>';
     });
@@ -658,8 +714,8 @@ __DATA__
       '<div class="tablewrap"><table><tr><th>Sample</th><th>H number</th><th>Primer</th><th>All reads</th><th>Mapped</th><th>At target site / mapped</th><th>Quality filter</th><th>Read families</th><th>Wet lab</th><th>Finding</th></tr>';
     ORDER.forEach(function (i) {
       var r = R[i], w = wetlab(r);
-      function cl(id, lim) { var x = mv(id, r); return '<td class="num' + (x !== null && x < lim ? ' low' : '') + '">' + pct(x) + '</td>'; }
-      t += '<tr class="row" data-i="' + i + '"><td>' + esc(sampleKey(r)) + '</td><td class="nw">' + esc(C_PAT ? g(r, C_PAT) : '') + '</td><td>' + esc(g(r, 'Primer')) + '</td>' +
+      function cl(id, lim) { var x = mv(id, r); return '<td class="num' + (x !== null && x < lim ? ' low' : '') + '">' + pct(x) + cnt(id, r) + '</td>'; }
+      t += '<tr class="row" data-i="' + i + '"><td>' + esc(sampleKey(r)) + '</td><td class="nw">' + esc(C_PAT ? g(r, C_PAT) : '') + '</td><td class="pr">' + wb(g(r, 'Primer')) + '</td>' +
         '<td class="num">' + fmt(MI.all_reads, mv('all_reads', r)) + '</td>' + cl('all_mapped', WL.min_mapped) + cl('site_of_mapped', WL.min_on_target) + cl('fastp_pass', WL.min_quality) + cl('fam_all', WL.min_families) +
         '<td>' + wlStateBadge(w.state) + '</td><td class="why">' + w.reasons.map(esc).join('<br>') + '</td></tr>';
     });
@@ -678,7 +734,7 @@ __DATA__
       var ma = idx.map(function (i) { return mv('all_mapped', R[i]); }).filter(function (x) { return x !== null; });
       var lowI = idx.slice().sort(function (a, b) { return (mv('site_of_mapped', R[a]) || 0) - (mv('site_of_mapped', R[b]) || 0); })[0];
       var med = median(so), bad = med !== null && med < WL.min_on_target;
-      t += '<tr><td>' + esc(p) + '</td><td class="num">' + idx.length + '</td><td class="num' + (bad ? ' low' : '') + '">' + pct(med) + '</td><td class="num"><a href="#" data-goto="' + lowI + '">' + esc(sampleKey(R[lowI])) + '</a> ' + pct(mv('site_of_mapped', R[lowI])) + '</td><td class="num">' + pct(median(ma)) + '</td><td>' +
+      t += '<tr><td>' + esc(p) + '</td><td class="num">' + idx.length + '</td><td class="num' + (bad ? ' low' : '') + '">' + pct(med) + '</td><td class="num"><a href="#" data-goto="' + lowI + '">' + esc(sampleKey(R[lowI])) + '</a> ' + pct(mv('site_of_mapped', R[lowI])) + cnt('site_of_mapped', R[lowI]) + '</td><td class="num">' + pct(median(ma)) + '</td><td>' +
         (med === null ? 'NA' : bad ? badge('Check', 'warn') : badge('OK', 'pass')) + '</td></tr>';
     });
     return t + '</table></div></div>';
@@ -738,11 +794,13 @@ __DATA__
   // general QC table
   qhtml += '<div class="module" id="qctable"><h2>QC metrics <span class="sub">per run, over all samples</span></h2>' +
     '<p class="note">Thresholds are the QC criteria of the workflow. "Below" lists the samples under the threshold; click one to open it.</p>' +
-    '<div class="tablewrap"><table><tr><th>Metric</th><th>Samples</th><th>Median</th><th>Minimum</th><th>Maximum</th><th>Threshold</th><th>Below threshold</th></tr>';
+    '<div class="tablewrap"><table><tr><th>Metric</th><th>Computed as</th><th>Run total</th><th>Samples</th><th>Median</th><th>Minimum</th><th>Maximum</th><th>Threshold</th><th>Below threshold</th></tr>';
   M.forEach(function (m) {
     var vals = [], lows = [];
     ORDER.forEach(function (i) { var x = mv(m.id, R[i]); if (x !== null) vals.push(x); if (below(m, R[i])) lows.push(i); });
-    qhtml += '<tr><td style="font-family:inherit">' + esc(m.label) + '</td><td class="num">' + vals.length + '</td><td class="num">' + fmt(m, median(vals)) +
+    var fs = fracSum(m.id);
+    qhtml += '<tr><td style="font-family:inherit">' + esc(m.label) + '</td><td class="why">' + esc(fracDesc(m.id)) + '</td><td class="num">' +
+      (fs ? fmt(m, fs[0] / fs[1]) + '<span class="cnt">' + n0(fs[0]) + ' of ' + n0(fs[1]) + '</span>' : '') + '</td><td class="num">' + vals.length + '</td><td class="num">' + fmt(m, median(vals)) +
       '</td><td class="num">' + fmt(m, vals.length ? Math.min.apply(null, vals) : null) + '</td><td class="num">' + fmt(m, vals.length ? Math.max.apply(null, vals) : null) +
       '</td><td class="num">' + (m.thr !== undefined ? '&ge; ' + fmt(m, m.thr) : '') + '</td><td>' +
       (m.thr === undefined ? '' : (lows.length ? lows.map(function (i) { return '<a href="#" data-goto="' + i + '">' + esc(sampleKey(R[i])) + '</a>'; }).join(', ') : badge('none', 'pass'))) + '</td></tr>';
@@ -783,7 +841,7 @@ __DATA__
     var cols = columns();
     Array.prototype.forEach.call(document.querySelectorAll('table.st'), function (t) {
       var idx = t.dataset.rows.split(',').map(Number);
-      var s = '<tr>' + cols.map(function (c) { return '<th' + (c.p ? ' class="' + c.p + '"' : '') + '>' + esc(c.h) + '</th>'; }).join('') + '</tr>';
+      var s = '<tr>' + cols.map(function (c) { return '<th class="' + (c.c === 'why' ? 'why ' : '') + (c.p || '') + '">' + esc(c.h) + '</th>'; }).join('') + '</tr>';
       idx.forEach(function (i) { s += '<tr class="row' + (i === CUR ? ' sel' : '') + '" data-i="' + i + '">' + cols.map(function (c) { return cell(c, R[i]); }).join('') + '</tr>'; });
       t.innerHTML = s;
     });
@@ -893,6 +951,11 @@ __DATA__
       var li = document.querySelector('#nav li[data-p="' + mo.dataset.p + '"]'); if (li) li.classList.toggle('hidden', !any);
     });
     Array.prototype.forEach.call(document.querySelectorAll('#tri tr.row'), function (tr) { tr.classList.toggle('hidden', !visible(+tr.dataset.i)); });
+    Array.prototype.forEach.call(document.querySelectorAll('#main table'), function (t) {
+      if (!t.querySelector('td.why')) return;
+      var any = Array.prototype.some.call(t.querySelectorAll('tr.row:not(.hidden) td.why'), function (td) { return td.textContent.trim() !== ''; });
+      t.classList.toggle('noreason', !any);
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.stat[data-f]'), function (b) { b.classList.toggle('on', b.dataset.f === filt && filt !== 'all'); });
     Array.prototype.forEach.call(document.querySelectorAll('#alltable tr.row'), function (tr) { tr.classList.toggle('hidden', !visible(+tr.dataset.i)); });
     Array.prototype.forEach.call(document.querySelectorAll('button.chip[data-f]'), function (b) { b.classList.toggle('on', b.dataset.f === filt); });
@@ -965,7 +1028,7 @@ __DATA__
       var yy = y(x), base = y(log ? Math.pow(10, y.lo) : Math.max(rg[0], 0));
       var bar = el('rect', {x:cx - Math.min(bw * 0.35, 14), width:Math.min(bw * 0.7, 28), y:Math.min(yy, base), height:Math.max(1, Math.abs(base - yy)), rx:3, 'class':'bar', fill:colorOf(i, [m])}, svg);
       bar.style.opacity = cls(R[i]) === 'neg' ? '.35' : '.9';
-      bar.addEventListener('mousemove', function (e) { showTip(e, tipHtml(i, [esc(m.label) + ': <b>' + fmt(m, x) + '</b>' + (m.thr !== undefined ? ' (threshold ' + fmt(m, m.thr) + ')' : '')])); });
+      bar.addEventListener('mousemove', function (e) { showTip(e, tipHtml(i, [esc(m.label) + ': <b>' + fmt(m, x) + '</b>' + (fracText(m.id, R[i]) ? ' (' + fracText(m.id, R[i]) + ')' : '') + (m.thr !== undefined ? ' (threshold ' + fmt(m, m.thr) + ')' : '')])); });
       bar.addEventListener('mouseleave', hideTip);
       bar.addEventListener('click', function () { hideTip(); goSample(i); });
     });
@@ -1027,7 +1090,7 @@ __DATA__
       return [{w:1, cls:'f1', color:'var(--grid)'}].concat(st.map(function (x) { return {w:mv(x.id, r), color:x.color}; }));
     }, function (i) {
       var r = R[i];
-      return tipHtml(i, ['all reads: <b>' + fmt(MI.all_reads, mv('all_reads', r)) + '</b>'].concat(st.map(function (x) { return esc(x.label) + ': <b>' + pct(mv(x.id, r)) + '</b>'; })));
+      return tipHtml(i, ['all reads: <b>' + fmt(MI.all_reads, mv('all_reads', r)) + '</b>'].concat(st.map(function (x) { return esc(x.label) + ': <b>' + pct(mv(x.id, r)) + '</b>' + (fracText(x.id, r) ? ' (' + fracText(x.id, r) + ')' : ''); })));
     });
   }
   var FCOL = ['#c7c7cc', '#8ec5ff', '#4ea1f5', '#1e7ae0', '#0f5bb5', '#0a3d7a'];
