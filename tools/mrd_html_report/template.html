@@ -684,7 +684,8 @@ __DATA__
   }
 
   // ---- wet-lab verdict (information only: says whether sequencing, primers and library worked) ---
-  var WL = D.wetlab || {min_mapped:0.5, min_on_target:0.5, min_quality:0.5, min_families:0.1};
+  var WL = D.wetlab || {};
+  [['min_mapped', 0.5], ['min_on_target', 0.5], ['min_quality', 0.5], ['min_families', 0.1], ['min_target_share', 0.95]].forEach(function (d) { if (WL[d[0]] === undefined) WL[d[0]] = d[1]; });
   function wetlab(r) {
     var out = [], have = false;
     function chk(id, lim, text) { var x = mv(id, r); if (x === null) return; have = true; var c = fracText(id, r); if (x < lim) out.push(text + ' (' + pct(x) + (c ? ', ' + c : '') + ' < ' + pct(lim) + ')'); }
@@ -692,6 +693,17 @@ __DATA__
     chk('site_of_mapped', WL.min_on_target, 'primers amplify off target: few mapped reads at the target site');
     chk('fastp_pass', WL.min_quality, 'low sequencing quality: few reads pass the quality filter');
     chk('fam_all', WL.min_families, 'few distinct molecules (low DNA input or over-amplification)');
+    // depth at the marker may still pass; this is about sequencing cost: reads that do not count for the marker
+    (function () {
+      var x = mv('all_site_ratio', r), f = frac('all_site_ratio', r), m = frac('all_mapped', r);
+      if (x === null) return;
+      have = true;
+      if (x >= WL.min_target_share) return;
+      var t = 'sequencing wasted: ' + pct(x) + ' of all reads at the target site' + (f ? ' (' + n0(f[0]) + ' of ' + n0(f[1]) + ')' : '') + ', below ' + pct(WL.min_target_share);
+      // where the other reads went: not mapped (primer dimers, adapters) or mapped elsewhere (off-target products)
+      if (f && m) t += '; not mapped ' + pct((m[1] - m[0]) / m[1]) + ' (' + n0(m[1] - m[0]) + '), mapped elsewhere ' + pct((m[0] - f[0]) / f[1]) + ' (' + n0(m[0] - f[0]) + ')';
+      out.push(t);
+    })();
     if (noqcOnly(r)) return {state:'repeat', reasons:[NOQC_TEXT].concat(out)};
     return {state: !have ? 'na' : (out.length ? 'check' : 'ok'), reasons: out};
   }
@@ -712,6 +724,13 @@ __DATA__
     if (medOf('fam_single') !== null) t += tile(pct(medOf('fam_single')), 'singleton families', 'fam_single');
     if (medOf('fam_mean') !== null) t += tile(fmt(MI.fam_mean, medOf('fam_mean')), 'read pairs per family');
     if (HAS_FUNNEL) { var nw = R.filter(function (r) { return wetlab(r).state === 'check'; }).length; t += tile(nw, 'samples to check (wet lab)'); }
+    // sequencing capacity of the run that does not count for any marker
+    var fsite = fracSum('all_site_ratio');
+    if (fsite) {
+      var nlow = R.filter(function (r) { var x = mv('all_site_ratio', r); return x !== null && x < WL.min_target_share; }).length;
+      t += '<div class="stat"><b>' + pct(1 - fsite[0] / fsite[1]) + '</b><span>of the run not at the target site (wasted sequencing)</span><span class="cnt">' +
+        n0(fsite[1] - fsite[0]) + ' of ' + n0(fsite[1]) + ' reads; ' + nlow + ' sample' + (nlow === 1 ? '' : 's') + ' below ' + pct(WL.min_target_share) + ' at target</span></div>';
+    }
     if (HAS_NOQC) t += tile(R.filter(noqcOnly).length, 'samples to repeat (found only without quality cutoffs)');
     return t + '</div><p class="note">All reads = every demultiplexed read of the sample (both mates), before primer trimming and any filter. ' +
       'Read families = UMI families after deduplication (one family = the read pairs with the same UMI and mapping position).</p></div>';
@@ -749,13 +768,14 @@ __DATA__
     var t = '<div class="module" id="wetlab"><h2>Wet-lab verdict per sample <span class="sub">' + (n.repeat ? n.repeat + ' to repeat, ' : '') + n.ok + ' OK, ' + n.check + ' to check' + (n.na ? ', ' + n.na + ' without data' : '') + '</span></h2>' +
       '<p class="note">Did sequencing, primers and library work? Based on all sequenced reads. "Check" is information for the lab and does not change any result. ' +
       '"Repeat": the marker was found by the analysis without quality cutoffs but not with the Phred 30 cutoffs; the result is not reportable and the sample should be repeated. ' +
-      'Limits: mapped / all reads &ge; ' + pct(WL.min_mapped) + '; at target site / mapped &ge; ' + pct(WL.min_on_target) + '; passing quality filter &ge; ' + pct(WL.min_quality) + '; read families / all reads &ge; ' + pct(WL.min_families) + '.</p>' +
-      '<div class="tablewrap"><table><tr><th>Sample</th><th>H number</th><th>Primer</th><th>All reads</th><th>Mapped</th><th>At target site / mapped</th><th>Quality filter</th><th>Read families</th><th>Wet lab</th><th>Finding</th></tr>';
+      'Limits: mapped / all reads &ge; ' + pct(WL.min_mapped) + '; at target site / mapped &ge; ' + pct(WL.min_on_target) + '; passing quality filter &ge; ' + pct(WL.min_quality) + '; read families / all reads &ge; ' + pct(WL.min_families) + '; at target site / all reads &ge; ' + pct(WL.min_target_share) +
+        ' (below: the run spends sequencing capacity on reads that do not count; the depth at the marker can still be enough).</p>' +
+      '<div class="tablewrap"><table><tr><th>Sample</th><th class="p3">H number</th><th>Primer</th><th>All reads</th><th>At target site / all reads</th><th>Mapped</th><th>At target site / mapped</th><th>Quality filter</th><th>Read families</th><th>Wet lab</th><th>Finding</th></tr>';
     ORDER.forEach(function (i) {
       var r = R[i], w = wetlab(r);
       function cl(id, lim) { var x = mv(id, r); return '<td class="num' + (x !== null && x < lim ? ' low' : '') + '">' + pct(x) + cnt(id, r) + '</td>'; }
-      t += '<tr class="row" data-i="' + i + '"><td>' + esc(sampleKey(r)) + '</td><td class="nw">' + esc(C_PAT ? g(r, C_PAT) : '') + '</td><td class="pr">' + wb(g(r, 'Primer')) + '</td>' +
-        '<td class="num">' + fmt(MI.all_reads, mv('all_reads', r)) + '</td>' + cl('all_mapped', WL.min_mapped) + cl('site_of_mapped', WL.min_on_target) + cl('fastp_pass', WL.min_quality) + cl('fam_all', WL.min_families) +
+      t += '<tr class="row" data-i="' + i + '"><td>' + esc(sampleKey(r)) + '</td><td class="nw p3">' + esc(C_PAT ? g(r, C_PAT) : '') + '</td><td class="pr">' + wb(g(r, 'Primer')) + '</td>' +
+        '<td class="num">' + fmt(MI.all_reads, mv('all_reads', r)) + '</td>' + cl('all_site_ratio', WL.min_target_share) + cl('all_mapped', WL.min_mapped) + cl('site_of_mapped', WL.min_on_target) + cl('fastp_pass', WL.min_quality) + cl('fam_all', WL.min_families) +
         '<td>' + wlStateBadge(w.state) + '</td><td class="why">' + w.reasons.map(esc).join('<br>') + '</td></tr>';
     });
     return t + '</table></div></div>';
