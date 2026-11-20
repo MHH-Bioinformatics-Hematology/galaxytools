@@ -70,6 +70,7 @@
         #if $select_mode.mode == "single"
             --noend
         #end if
+        $advancedsettings.vcfall
         #if $rtype == "genome"
             ## the per-contig regions span whole contigs; tile them into windows internally
             --chunk 1000000
@@ -144,6 +145,8 @@
             <param argument="-mfreq" type="float" min="0.0" max="1.0" value="0.25" label="Variant frequency threshold for monomer microsatellite (MSI) regions" />
             <param argument="-nmfreq" type="float" min="0.0" max="1.0" value="0.1" label="Variant frequency threshold for non-monomer microsatellite (MSI) regions" />
             <param argument="-t" type="boolean" truevalue="-t" falsevalue="" checked="false" label="Remove duplicated reads before calling" />
+            <param argument="--vcfall" type="boolean" truevalue="--vcfall" falsevalue="" checked="false" label="Report every variant at a position"
+                   help="By default only the variant with the highest allele frequency at a position is written to the VCF, as VarDict's var2vcf does. With this option every variant found at that position is written, in allele-frequency order, each through the same filters (var2vcf -A)." />
         </section>
         <expand macro="ref_select" />
     </inputs>
@@ -216,6 +219,57 @@
                 </assert_contents>
             </output>
         </test>
+        <!-- every variant at a position (var2vcf -A): chrM 16224 has C>T and CT>TC, both written -->
+        <test expect_num_outputs="1">
+            <conditional name="select_mode">
+                <param name="mode" value="single" />
+                <param name="tumor" ftype="bam" value="tumor.bam" />
+            </conditional>
+            <conditional name="region_source">
+                <param name="region_type" value="single" />
+                <param name="region" value="chrM:1-16571" />
+            </conditional>
+            <section name="advancedsettings">
+                <param name="f" value="0.001" />
+                <param name="r" value="1" />
+                <param name="vcfall" value="true" />
+            </section>
+            <conditional name="reference_source">
+                <param name="reference_source_selector" value="history"/>
+                <param name="ref_file" ftype="fasta" value="genome.fasta" />
+            </conditional>
+            <output name="variants" ftype="vcf">
+                <assert_contents>
+                    <has_line_matching expression="chrM\t16224\t\.\tC\tT\t.*" />
+                    <has_line_matching expression="chrM\t16224\t\.\tCT\tTC\t.*" />
+                    <has_line_matching expression="chrM\t16224\t.*" n="2" />
+                </assert_contents>
+            </output>
+        </test>
+        <!-- the same without the option: only the variant with the highest allele frequency at 16224 -->
+        <test expect_num_outputs="1">
+            <conditional name="select_mode">
+                <param name="mode" value="single" />
+                <param name="tumor" ftype="bam" value="tumor.bam" />
+            </conditional>
+            <conditional name="region_source">
+                <param name="region_type" value="single" />
+                <param name="region" value="chrM:1-16571" />
+            </conditional>
+            <section name="advancedsettings">
+                <param name="f" value="0.001" />
+                <param name="r" value="1" />
+            </section>
+            <conditional name="reference_source">
+                <param name="reference_source_selector" value="history"/>
+                <param name="ref_file" ftype="fasta" value="genome.fasta" />
+            </conditional>
+            <output name="variants" ftype="vcf">
+                <assert_contents>
+                    <has_line_matching expression="chrM\t16224\t.*" n="1" />
+                </assert_contents>
+            </output>
+        </test>
     </tests>
     <help><![CDATA[
 vardictcpp
@@ -232,6 +286,10 @@ output is standard **VCF**:
 
 - single-sample mode: one sample column (var2vcf_valid semantics),
 - paired mode: tumor and normal sample columns with somatic STATUS (var2vcf_paired semantics).
+
+Like var2vcf, the VCF holds one variant per position by default, the one with the highest allele
+frequency. **Report every variant at a position** (advanced settings, ``--vcfall``, var2vcf ``-A``)
+writes all variants found at a position instead.
 
 **Memory note:** VarDict holds all per-position data for the region it is processing in memory at
 once. Restrict calling to your actual targets (a BED file or typed regions) to keep memory low;
