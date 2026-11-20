@@ -1,0 +1,12 @@
+name: bam_read_accounting
+owner: mhh-hematology
+categories:
+  - SAM
+description: samtools idxstats, RSeQC bam_stat counts and reads per region from one BAM in one job
+long_description: |
+  Reads a BAM once and writes the samtools idxstats table, the RSeQC bam_stat.py counts in its exact
+  text format (byte-identical for the same mapping quality cut), and optionally the number of reads
+  in each region of a BED, for example the span of the target gene.
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/bam_read_accounting
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/bam_read_accounting
+type: unrestricted

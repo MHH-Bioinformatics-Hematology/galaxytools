@@ -1,0 +1,122 @@
+<tool id="bam_read_accounting" name="BAM read accounting" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="24.2">
+    <description>idxstats, bam_stat counts and reads per region in one job</description>
+    <macros>
+        <token name="@TOOL_VERSION@">1.22</token>
+        <token name="@VERSION_SUFFIX@">0</token>
+    </macros>
+    <requirements>
+        <requirement type="package" version="@TOOL_VERSION@">samtools</requirement>
+        <requirement type="package" version="5.3.0">gawk</requirement>
+    </requirements>
+    <version_command>samtools --version | head -n 1</version_command>
+    <command detect_errors="exit_code"><![CDATA[
+ln -s '$input' input.bam &&
+ln -s '$input.metadata.bam_index' input.bam.bai &&
+samtools idxstats input.bam > '$idxstats' &&
+samtools view input.bam | awk -v q='$mapq' -f '$bamstat_script' > '$bamstat'
+#if $regions
+    && while IFS=\$'\t' read -r c s e n rest || [ -n "\$c" ]; do
+        case "\$c" in ''|'#'*|track*|browser*) continue;; esac;
+        printf '%s\t%s\t%s\t%s\t%s\n' "\$c" "\$s" "\$e" "\${n:-\$c:\$s-\$e}" "\$(samtools view -c -F 0x704 -q '$region_mapq' input.bam "\$c:\$((s + 1))-\$e")";
+    done < '$regions' > '$region_counts'
+#end if
+    ]]></command>
+    <configfiles>
+        <configfile name="bamstat_script"><![CDATA[
+# Counts of RSeQC bam_stat.py, in its output format, from samtools view text: every record is counted,
+# then QC-failed, duplicate, secondary and unmapped records are set aside in this order; the rest is
+# split at mapping quality q, and the records at or above it are counted by read, strand, splicing
+# (N in the CIGAR) and proper pairing (mate on another chromosome when RNEXT is neither = nor *).
+{
+    total++
+    f = $2 + 0
+    if (and(f, 512)) { qc++; next }
+    if (and(f, 1024)) { dup++; next }
+    if (and(f, 256)) { nonprimary++; next }
+    if (and(f, 4)) { unmapped++; next }
+    if ($5 + 0 < q) { multi++; next }
+    uniq++
+    if (and(f, 64)) read1++
+    if (and(f, 128)) read2++
+    if (and(f, 16)) reverse++
+    else forward++
+    if ($6 ~ /N/) splice++
+    else nonsplice++
+    if (and(f, 2)) {
+        proper++
+        if ($7 != "=" && $7 != "*" && $7 != $3) diffchrom++
+    }
+}
+END {
+    printf "\n#==================================================\n"
+    printf "#All numbers are READ count\n"
+    printf "#==================================================\n\n"
+    printf "%-40s%d\n", "Total records:", total
+    printf "\n"
+    printf "%-40s%d\n", "QC failed:", qc
+    printf "%-40s%d\n", "Optical/PCR duplicate:", dup
+    printf "%-40s%d\n", "Non primary hits", nonprimary
+    printf "%-40s%d\n", "Unmapped reads:", unmapped
+    printf "%-40s%d\n", "mapq < mapq_cut (non-unique):", multi
+    printf "\n"
+    printf "%-40s%d\n", "mapq >= mapq_cut (unique):", uniq
+    printf "%-40s%d\n", "Read-1:", read1
+    printf "%-40s%d\n", "Read-2:", read2
+    printf "%-40s%d\n", "Reads map to '+':", forward
+    printf "%-40s%d\n", "Reads map to '-':", reverse
+    printf "%-40s%d\n", "Non-splice reads:", nonsplice
+    printf "%-40s%d\n", "Splice reads:", splice
+    printf "%-40s%d\n", "Reads mapped in proper pairs:", proper
+    printf "%-40s%d\n", "Proper-paired reads map to different chrom:", diffchrom
+}
+]]></configfile>
+    </configfiles>
+    <inputs>
+        <param name="input" type="data" format="bam" label="Coordinate-sorted BAM"/>
+        <param name="mapq" type="integer" value="30" min="0" label="Minimum mapping quality for uniquely mapped reads" help="As -q of RSeQC bam_stat: records at or above it count as unique, below it as non-unique."/>
+        <param name="regions" type="data" format="bed" optional="true" label="Regions to count reads in" help="Optional BED (chrom, start, end, optional name), for example the span of the target gene. Counted are primary mapped reads that are not duplicates or QC-failed and overlap the region."/>
+        <param name="region_mapq" type="integer" value="0" min="0" label="Minimum mapping quality for the region counts"/>
+    </inputs>
+    <outputs>
+        <data name="idxstats" format="tabular" label="${tool.name} on ${on_string}: idxstats"/>
+        <data name="bamstat" format="txt" label="${tool.name} on ${on_string}: bam_stat"/>
+        <data name="region_counts" format="tabular" label="${tool.name} on ${on_string}: reads per region">
+            <filter>regions</filter>
+        </data>
+    </outputs>
+    <tests>
+        <!-- 1: both outputs byte-identical to samtools idxstats and RSeQC bam_stat.py -q 30 on the same BAM -->
+        <test expect_num_outputs="2">
+            <param name="input" value="paired.bam" ftype="bam"/>
+            <output name="idxstats" file="paired.idxstats.tabular"/>
+            <output name="bamstat" file="paired.bam_stat.txt"/>
+        </test>
+        <!-- 2: other mapping quality cut, as bam_stat.py -q 60, and reads per region -->
+        <test expect_num_outputs="3">
+            <param name="input" value="paired.bam" ftype="bam"/>
+            <param name="mapq" value="60"/>
+            <param name="regions" value="regions.bed" ftype="bed"/>
+            <output name="bamstat" file="paired.bam_stat_q60.txt"/>
+            <output name="region_counts" file="paired.region_counts.tabular"/>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Reads a BAM once for the read accounting that otherwise needs two tools:
+
+- **idxstats**: the output of ``samtools idxstats`` (per reference: length, mapped, unmapped).
+- **bam_stat**: the counts and the text format of **RSeQC bam_stat.py**: total records, QC failed,
+  duplicates, non-primary hits, unmapped, below and at or above the mapping quality cut, and for the
+  uniquely mapped records read 1 and 2, strand, splicing, proper pairs and proper pairs with the
+  mate on another chromosome. Byte-identical to bam_stat.py with the same ``-q``.
+- **reads per region** (optional): for every BED region, the primary mapped reads overlapping it
+  (no duplicates, no QC-failed reads), for example in the span of the target gene.
+
+Because both outputs match the original tools exactly, steps that read them stay unchanged.
+    ]]></help>
+    <citations>
+        <citation type="doi">10.1093/gigascience/giab008</citation>
+        <citation type="doi">10.1093/bioinformatics/bts356</citation>
+    </citations>
+</tool>
