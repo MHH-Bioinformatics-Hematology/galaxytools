@@ -99,6 +99,13 @@ tr.row, tr.info { cursor:pointer; }
 #panel th { top:0; }
 #panel .pw { overflow-x:auto; }
 #panel .cnt { white-space:normal; }
+.basis { border-radius:10px; padding:.5em .7em .6em; margin:.5em 0; }
+.basis h4 { margin:0 0 .45em; font-size:.82rem; }
+.basis h4 span { display:block; font-weight:400; font-size:.74rem; color:var(--muted); }
+.basis.fam { border:2px solid var(--brand); background:rgba(0,113,227,.05); }
+.basis.all { border:1px dashed var(--border); opacity:.8; }
+.group.famgrp { border:2px solid var(--brand); }
+
 .emptynote { margin:.1em 0 .5em; font-size:.8rem; color:var(--text); background:var(--surface-2); border-radius:8px; padding:.4em .6em; }
 .empties { margin:.5em 0 0; font-size:.72rem; color:var(--muted); overflow-wrap:anywhere; }
 #panel .ph h2 { min-width:0; } #panel .ph h2 .sub, #panel .why li { overflow-wrap:anywhere; }
@@ -587,17 +594,28 @@ __DATA__
     ['Without quality cutoffs (second read-family branch)', /quality cutoffs/],
     ['QC criteria', /(greater equal|VarDict QC|Sequencing depth|Alt base quality|ratio greater|PHREAD|low-quality evidence)/i],
     ['FLT3', /^FLT3_/],
-    ['Read families (deduplicated)', /^FAMILY_BAM|^target chromosome|^idxstats|^Total records|^Unmapped reads|^mapq|^unmapped\/total|^mapped\/total|^Chromosome|^Mapped Reads/],
-    ['All reads (before quality filter)', /^ALL |^UMI branch reads after fastp/],
+    ['Read families after UMI deduplication (basis of the result)', /^FAMILY_BAM|^target chromosome|^idxstats|^Total records|^Unmapped reads|^mapq|^unmapped\/total|^mapped\/total|^Chromosome|^Mapped Reads/],
+    ['All reads before deduplication and quality filter (wet-lab information)', /^ALL |^UMI branch reads after fastp/],
     ['Reads after the fastp filter (UMI branch)', /^RAW_BAM/],
-    ['Read counts at the marker, read families', /^TRIMMED_/],
-    ['Read counts at the marker, raw reads', /^RAW_(reference|depth|[ACGTN]_)/],
+    ['Read counts at the marker, read families (basis of the result)', /^TRIMMED_/],
+    ['Read counts at the marker, all reads before deduplication', /^RAW_(reference|depth|[ACGTN]_)/],
     ['Barcodes and status', /^(MID_F|MID_R|primer|pipeline_status|physician_review|Decision)/i]
   ];
   var SKIP = {'sample':1, 'PatientId':1, 'Mutation detected':1};
+  // metrics on the read families (after UMI deduplication) decide the result; the others describe all reads
+  // the decisive values first: depth and VAF at the marker, then mapping and family statistics
+  var FAM_ORDER = ['depth_fam', 'vaf', 'vaf_noqc', 'fam_mapped', 'on_target', 'on_target_all', 'fam_reads', 'fam_all', 'fam_mean', 'fam_single'];
+  var FAM_IDS = {fam_reads:1, fam_mapped:1, on_target:1, on_target_all:1, depth_fam:1, fam_mean:1, fam_single:1, fam_all:1, vaf:1, vaf_noqc:1};
   function qcBars(r) {
-    var out = '<div class="qcbars">';
-    M.forEach(function (m) {
+    return '<div class="basis fam"><h4>Read families, after UMI deduplication <span>basis of the result: each DNA molecule counts once</span></h4>' +
+      qcBarRows(r, function (m) { return FAM_IDS[m.id]; }, FAM_ORDER) + '</div>' +
+      '<div class="basis all"><h4>All reads, before deduplication <span>wet-lab information only: a molecule read several times counts several times</span></h4>' +
+      qcBarRows(r, function (m) { return !FAM_IDS[m.id]; }) + '</div>';
+  }
+  function qcBarRows(r, keep, order) {
+    var out = '<div class="qcbars">', ms = M.filter(keep);
+    if (order) ms.sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
+    ms.forEach(function (m) {
       var x = mv(m.id, r);
       var lg = m.log, all = R.map(function (q) { return mv(m.id, q); }).filter(function (v) { return v !== null && (!lg || v > 0); });
       if (!all.length) return;
@@ -637,7 +655,7 @@ __DATA__
       });
       if (!kv && !empty.length) return;
       var note = empty.length ? emptyNote(gr[0], r) : '';
-      out += '<div class="group"><h3>' + esc(gr[0]) + '</h3>' + (note ? '<p class="emptynote">' + esc(note) + '</p>' : '') +
+      out += '<div class="group' + (/basis of the result/.test(gr[0]) ? ' famgrp' : '') + '"><h3>' + esc(gr[0]) + '</h3>' + (note ? '<p class="emptynote">' + esc(note) + '</p>' : '') +
         (kv ? '<div class="kv">' + kv + '</div>' : '') +
         (empty.length ? '<p class="empties">' + (note ? 'Empty: ' : 'Without value: ') + empty.map(function (h) { return esc(h.replace(/^ANN\[\*\]\./, '')); }).join(', ') + '</p>' : '') + '</div>';
     });
