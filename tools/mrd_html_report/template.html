@@ -257,9 +257,39 @@ __DATA__
   //   rev  orange  detected with physician review (non-exact match, warning)
   //   neg  green ND  QC passed, not detected
   var CLS = {np:'Not processed', qc:'QC failed', pass:'Detected', rev:'Review', neg:'Not detected'};
+  // ---- primer check of the workflow, carried in pipeline_status (WARNING_<check> or FAILED_<check>) -----
+  //   marker_outside_primer_amplicon:<marker>_not_in_<amplicon>[;fits_<tx>_at_<pos>][;position_fits_<tx>_at_<pos>_bases_differ]
+  //   primer_not_in_primer_table:<primer>, primer_umi_length_not_8_or_16:<primer>=<umi>
+  function locus(t) { var m = /^(chr[^:]+):(\d+)(?:-(\d+))?$/.exec(t); if (!m) return t; var f = function (x) { return Number(x).toLocaleString('en-US'); }; return m[1] + ':' + f(m[2]) + (m[3] ? '\u2013' + f(m[3]) : ''); }
+  function primerOutside(r) { return /marker_outside_primer_amplicon:/.test(g(r, 'pipeline_status')); }
+  function primerText(st) {
+    var m = /marker_outside_primer_amplicon:([^;]+?)_not_in_([^;]+)((?:;.*)?)$/.exec(st);
+    if (m) {
+      var t = 'primer did not match the location: the marker (' + locus(m[1]) + ') lies outside the amplicon of the primer (' + locus(m[2]) + ')';
+      var fits = [], pos = [];
+      m[3].split(';').forEach(function (x) {
+        var a = /^fits_([^_]+_[^_]+)_at_(.+)$/.exec(x), b = /^position_fits_([^_]+_[^_]+)_at_(.+)_bases_differ$/.exec(x);
+        if (a) fits.push(a[1] + ' (' + locus(a[2]) + ')');
+        if (b) pos.push(b[1] + ' (' + locus(b[2]) + ')');
+      });
+      if (fits.length) t += '; the DNA position fits transcript ' + fits.join(' and ') + ' inside the amplicon: check the transcript in the sample sheet';
+      else if (pos.length) t += '; in transcript ' + pos.join(' and ') + ' the position lies inside the amplicon, but the bases of the DNA position do not fit: check transcript and DNA position';
+      else t += '; no other transcript of the gene places it there: check primer and DNA position';
+      return t;
+    }
+    m = /primer_not_in_primer_table:(.+)$/.exec(st); if (m) return 'primer ' + m[1] + ' is not in the primer table';
+    m = /primer_umi_length_not_8_or_16:(.+)=(.*)$/.exec(st); if (m) return 'primer ' + m[1] + ': UMI length ' + m[2] + ' in the primer table, not 8 or 16';
+    return null;
+  }
+  // readable text of a pipeline_status other than ok
+  function statusText(st) {
+    var p = primerText(st);
+    if (p) return p;
+    return st.replace(/_/g, ' ');
+  }
   function cls(r) {
     if (/^FAILED/.test(g(r, 'pipeline_status')) || isNA(md(r))) return 'np';
-    if (qcLow(r) || g(r, 'Low-quality evidence at marker') === 'TRUE' || noqcOnly(r)) return 'qc';
+    if (primerOutside(r) || qcLow(r) || g(r, 'Low-quality evidence at marker') === 'TRUE' || noqcOnly(r)) return 'qc';
     if (md(r) === 'TRUE') return 'pass';
     if (review(r) || warn(r)) return 'rev';
     return 'neg';
@@ -348,10 +378,23 @@ __DATA__
   }
   function reasons(r) {
     var c = cls(r), st = g(r, 'pipeline_status'), mt = g(r, 'marker_match_type'), fr = g(r, 'FLT3_result'), out = [];
-    if (c === 'np') return [isNA(st) || st === 'ok' ? 'no result for this sample' : st.replace(/_/g, ' ')];
+    if (c === 'np') return [isNA(st) || st === 'ok' ? 'no result for this sample' : statusText(st)];
+    if (c === 'qc' && primerOutside(r)) out.push(primerText(st));
     if (c === 'qc' && g(r, 'Low-quality evidence at marker') === 'TRUE') out.push('marker signal present but below the quality cutoffs' + (isNA(g(r, 'Low-quality evidence detail')) ? '' : ': ' + g(r, 'Low-quality evidence detail')));
     if (c === 'qc' && noqcOnly(r)) out.push(noqcReason(r));
     if (c === 'qc') QCM.forEach(function (m) { if (below(m, r)) out.push(m.label.toLowerCase() + ' ' + fmt(m, mv(m.id, r)) + ' below ' + fmt(m, m.thr)); });
+    if (c === 'qc' && !review(r)) {
+      // every other failed criterion, so a red sample lists all its reasons (a sample for physician review lists
+      // them in its review text below). Not repeated: the thresholds above, VAF and VarDict of a sample without
+      // any call (no call is not a QC failure), base quality unless the call is an SNV (it applies to SNVs only)
+      var ref = g(r, 'REF'), alt = g(r, 'ALT'), snv = !isNA(ref) && !isNA(alt) && ref.length === 1 && alt.length === 1;
+      failedCriteria(r).forEach(function (t) {
+        if (/^(mapped|reads on marker|reads at the target site|read families at the target site|depth|marker signal present|mutation found only)/.test(t)) return;
+        if (isNA(g(r, 'AF')) && /^(no call at the marker|no VarDict call)/.test(t)) return;
+        if (!snv && /^base quality/.test(t)) return;
+        if (out.indexOf(t) < 0) out.push(t);
+      });
+    }
     if (c === 'rev' || (c === 'qc' && review(r))) {
       if (/^(FUZZY|PARTIAL)_/.test(fr)) out.push('FLT3-ITD not found exactly: ' + fr.replace(/_/g, ' ') + (isNA(g(r, 'FLT3_found_len')) ? '' : ' (searched ' + g(r, 'FLT3_searched_len') + ' bp, found ' + g(r, 'FLT3_found_len') + ' bp)'));
       else if (/^FUZZY_/.test(mt)) out.push('marker not matched exactly: ' + mt.replace(/_/g, ' ') + ' (called ' + (g(r, 'ANN[*].HGVS_C') || 'NA') + ')');
@@ -360,7 +403,7 @@ __DATA__
         var fc = failedCriteria(r).filter(function (t) { return c !== 'qc' || !/^(mapped|reads on marker|reads at the target site|read families at the target site|depth)/.test(t); });
         out.push('marker found exactly (VAF ' + fmt(MI.vaf, mv('vaf', r)) + ')' + (fc.length ? ', but QC failed: ' + fc.join('; ') : (c === 'qc' ? '' : ', but QC failed')));
       }
-      if (st !== '' && st !== 'ok') out.push(st.replace(/_/g, ' '));
+      if (st !== '' && st !== 'ok' && !primerOutside(r)) out.push(statusText(st));
       if (!out.length) out.push('flagged for physician review');
     }
     if (c === 'neg' && /below_support/.test(mt)) out.push('only a call below AF 0.1% / 2 reads near the marker');
@@ -409,7 +452,7 @@ __DATA__
     {h:'Match', f:function (r) { return esc(g(r, 'marker_match_type')); }},
     {h:'Review', f:function (r) { return review(r) ? badge('YES', 'warn') : ''; }},
     {h:'Wet lab', f:wlBadge},
-    {h:'Status', f:function (r) { var s = g(r, 'pipeline_status'); return (s === 'ok' || s === '') ? esc(s) : badge(s, /^FAILED/.test(s) ? 'fail' : 'warn'); }}
+    {h:'Status', f:function (r) { var s = g(r, 'pipeline_status'); return (s === 'ok' || s === '') ? esc(s) : '<span title="' + esc(statusText(s)) + '">' + badge(primerOutside(r) ? (/^FAILED/.test(s) ? 'FAILED: primer location' : 'primer location') : s, /^FAILED/.test(s) || primerOutside(r) ? 'fail' : 'warn') + '</span>'; }}
   ].filter(function (c) { return !c.m || MI[c.m] && M.indexOf(MI[c.m]) >= 0; });
   var extra = (store('cols') || []).filter(function (h) { return col(h) >= 0; });
   function cell(c, r) {
