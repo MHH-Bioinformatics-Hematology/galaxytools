@@ -1,0 +1,120 @@
+<tool id="collection_awk" name="Text reformatting with awk over a collection" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="24.2">
+    <description>one job for all elements, element identifier as a variable</description>
+    <macros>
+        <token name="@TOOL_VERSION@">5.3.0</token>
+        <token name="@VERSION_SUFFIX@">0</token>
+    </macros>
+    <requirements>
+        <requirement type="package" version="@TOOL_VERSION@">gawk</requirement>
+    </requirements>
+    <version_command>awk --version | head -n 1</version_command>
+    <command detect_errors="exit_code"><![CDATA[
+env -i
+\$(which awk)
+    --sandbox
+    -v FS='	'
+    -v OFS='	'
+    #for $i, $r in enumerate($variables, start=1)
+        -v VAR$i='$r.value'
+    #end for
+    --re-interval
+    -f '$awk_script'
+    #if $lookup
+        id='__lookup__' '$lookup'
+    #end if
+    #for $element in $input
+        #set $identifier = str($element.element_identifier).replace("'", "")
+        id='$identifier' '$element'
+    #end for
+    > '$outfile'
+    ]]></command>
+    <configfiles>
+        <configfile name="awk_script">$code</configfile>
+    </configfiles>
+    <inputs>
+        <param name="input" type="data_collection" collection_type="list" format="txt" label="Collection to process" help="All elements are read by one awk process, in the order of the collection."/>
+        <param name="lookup" type="data" format="txt" optional="true" label="Lookup file read before the collection" help="Optional, for example a sample table to join with. While it is read, the variable id is __lookup__."/>
+        <param name="code" type="text" area="true" size="10x60" label="AWK program" help="The element identifier of the file being read is in the variable id. FS and OFS are TAB. BEGINFILE and ENDFILE run once per element.">
+            <sanitizer>
+                <valid initial="string.printable">
+                    <remove value="&apos;"/>
+                </valid>
+            </sanitizer>
+        </param>
+        <repeat name="variables" min="0" default="0" title="Variables">
+            <param name="value" type="text" label="Value" help="Available as VAR1, VAR2, ... in the program.">
+                <validator type="regex">[a-zA-Z0-9 .]+</validator>
+            </param>
+        </repeat>
+    </inputs>
+    <outputs>
+        <data name="outfile" format="tabular"/>
+    </outputs>
+    <tests>
+        <!-- 1: identifier column, as awk + add input name as column + concatenate would give -->
+        <test expect_num_outputs="1">
+            <param name="input">
+                <collection type="list">
+                    <element name="s1" value="a.txt"/>
+                    <element name="s2" value="b.txt"/>
+                </collection>
+            </param>
+            <param name="code" value="{ print $0, id }"/>
+            <output name="outfile" file="identifier_column.tabular"/>
+        </test>
+        <!-- 2: one result line per element from ENDFILE -->
+        <test expect_num_outputs="1">
+            <param name="input">
+                <collection type="list">
+                    <element name="s1" value="a.txt"/>
+                    <element name="s2" value="b.txt"/>
+                </collection>
+            </param>
+            <param name="code" value="{ n++ } ENDFILE { print id, n; n = 0 }"/>
+            <output name="outfile" file="line_counts.tabular"/>
+        </test>
+        <!-- 3: lookup file read first, joined on the identifier, with a variable -->
+        <test expect_num_outputs="1">
+            <param name="input">
+                <collection type="list">
+                    <element name="s1" value="a.txt"/>
+                    <element name="s2" value="b.txt"/>
+                </collection>
+            </param>
+            <param name="lookup" value="lookup.tabular"/>
+            <param name="code" value="id == &quot;__lookup__&quot; { name[$1] = $2; next } FNR == 1 { print id, name[id], VAR1 }"/>
+            <repeat name="variables">
+                <param name="value" value="first"/>
+            </repeat>
+            <output name="outfile" file="lookup_join.tabular"/>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Runs one gawk program over every element of a list collection in a single job. While an
+element is read, its element identifier is in the variable ``id``, so per-sample results can
+carry the sample name without a separate "add input name as column" step and without
+concatenating the per-sample outputs afterwards.
+
+This replaces chains such as *awk per element* followed by *add input name as column* and
+*concatenate*, which otherwise run as several jobs per element.
+
+-----
+
+**Program**
+
+- ``FS`` and ``OFS`` are TAB.
+- ``id`` holds the element identifier of the file being read.
+- ``BEGINFILE`` and ``ENDFILE`` blocks run once per element; use them where a per-element
+  program had an ``END`` block.
+- ``FNR`` counts lines within the element, ``NR`` over all elements.
+- An optional lookup file is read before the collection, with ``id`` set to ``__lookup__``.
+- Variables are available as ``VAR1``, ``VAR2``, ...
+
+The program runs in gawk's sandbox mode: no ``system()``, no redirection, no reading of other files.
+    ]]></help>
+    <citations>
+        <citation type="bibtex">@misc{gawk, title = {GNU Awk}, url = {https://www.gnu.org/software/gawk/}}</citation>
+    </citations>
+</tool>

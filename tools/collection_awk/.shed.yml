@@ -1,0 +1,12 @@
+name: collection_awk
+owner: mhh-hematology
+categories:
+  - Text Manipulation
+description: awk over all elements of a collection in one job, element identifier as a variable
+long_description: |
+  Runs one gawk program over every element of a list collection in a single job, with the element
+  identifier available as the variable id. Replaces per-element chains of awk, "add input name as
+  column" and concatenation, which otherwise cost several jobs per element.
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/collection_awk
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/collection_awk
+type: unrestricted
