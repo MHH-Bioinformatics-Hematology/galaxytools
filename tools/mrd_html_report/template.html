@@ -88,16 +88,19 @@ div.main { margin-left:var(--sidebar-w); padding:1.2em 1.6em 3em; max-width:2000
   background:var(--surface); border-left:1px solid var(--border); box-shadow:var(--shadow); padding:1em 1.3em 2em; display:none;
 }
 body.panelopen #panel { display:block; }
-@media (min-width:1500px) { body.panelopen div.main { margin-right:48em; } }
-/* below 1500 px the panel is an overlay over a dimmed page; a tap on the dimmed part closes it */
+@media (min-width:1900px) { body.panelopen div.main { margin-right:48em; } body.panelopen .p3 { display:none; } }
+td.nocall { color:var(--muted); font-family:inherit; font-size:.78rem; }
+/* below 1900 px the panel is an overlay over a dimmed page; a tap on the dimmed part closes it */
 #shade { position:fixed; inset:0; z-index:14; background:rgba(0,0,0,.35); display:none; }
-@media (max-width:1499px) { body.panelopen #shade { display:block; } body.panelopen { overflow:hidden; } #panel { box-shadow:-12px 0 40px rgba(0,0,0,.25); } }
+@media (max-width:1899px) { body.panelopen #shade { display:block; } body.panelopen { overflow:hidden; } #panel { box-shadow:-12px 0 40px rgba(0,0,0,.25); } }
 @media (max-width:760px) { #panel { width:calc(100vw - 2.4em); padding:.8em 1em 2em; } }
 tr.row, tr.info { cursor:pointer; }
 #panel { overflow-x:hidden; }
 #panel th { top:0; }
 #panel .pw { overflow-x:auto; }
 #panel .cnt { white-space:normal; }
+.emptynote { margin:.1em 0 .5em; font-size:.8rem; color:var(--text); background:var(--surface-2); border-radius:8px; padding:.4em .6em; }
+.empties { margin:.5em 0 0; font-size:.72rem; color:var(--muted); overflow-wrap:anywhere; }
 #panel .ph h2 { min-width:0; } #panel .ph h2 .sub, #panel .why li { overflow-wrap:anywhere; }
 #panel pre.aln { max-width:100%; white-space:pre; overflow-x:auto; } #panel .kv .v { min-width:0; }
 #panel .kv, #panel .groups { min-width:0; }
@@ -567,7 +570,12 @@ __DATA__
   var extra = (store('cols') || []).filter(function (h) { return col(h) >= 0; });
   function cell(c, r) {
     var p = c.p ? ' ' + c.p : '';
-    if (c.m) { var m = MI[c.m], x = mv(c.m, r); return '<td class="num' + (below(m, r) ? ' low' : '') + p + '">' + fmt(m, x) + '</td>'; }
+    if (c.m) {
+      var m = MI[c.m], x = mv(c.m, r);
+      // a VAF without a call is not missing data: say so
+      if (x === null && (c.m === 'vaf' || c.m === 'vaf_noqc') && cls(r) !== 'np') return '<td class="num nocall' + p + '">no call</td>';
+      return '<td class="num' + (below(m, r) ? ' low' : '') + p + '">' + fmt(m, x) + '</td>';
+    }
     if (c.x !== undefined) return '<td class="' + p + '">' + esc(g(r, c.x)) + '</td>';
     return '<td class="' + (c.c || '') + p + '">' + c.f(r) + '</td>';
   }
@@ -605,19 +613,33 @@ __DATA__
     });
     return out + '</div>';
   }
+  // why the fields of a group can be empty, so that empty values read as information, not as missing data
+  function emptyNote(gname, r) {
+    if (cls(r) === 'np') return 'sample not processed: the workflow has no values for it';
+    if (/^Marker and call/.test(gname) && isNA(g(r, 'CHROM'))) return 'no variant called at the marker: VarDict reported no variant at this position, so position, bases, quality, filter, depth, VAF and annotation are empty';
+    if (/^Without quality cutoffs/.test(gname) && g(r, 'No quality cutoffs: called') !== 'TRUE') return 'no variant called at the marker without quality cutoffs either';
+    if (/^FLT3/.test(gname) && isNA(g(r, 'FLT3_gene'))) return 'not an FLT3-ITD marker';
+    return '';
+  }
   function detail(r) {
     var used = {}, out = '<div class="group" style="margin-bottom:.9em"><h3>QC of this sample (bar) against the run median (orange) and the threshold (dark)</h3>' + qcBars(r) + '</div><div class="groups">';
     GROUPS.forEach(function (gr) {
-      var kv = '';
+      var kv = '', empty = [];
       H.forEach(function (h, i) {
         if (used[i] || SKIP[h] || !gr[1].test(h)) return;
         used[i] = 1;
         var v = r[i] === undefined ? '' : r[i];
-        if (h === 'FLT3_sw_pairing' && !isNA(v)) { kv += '<div class="k">' + esc(h) + '</div><div class="v"><pre class="aln">' + esc(v.split('//').join('\n')) + '</pre></div>'; return; }
+        // empty fields are listed once at the end of the group instead of one NA row each
+        if (isNA(v)) { if (empty.indexOf(h) < 0) empty.push(h); return; }
+        if (h === 'FLT3_sw_pairing') { kv += '<div class="k">' + esc(h) + '</div><div class="v"><pre class="aln">' + esc(v.split('//').join('\n')) + '</pre></div>'; return; }
         var vv = v === 'TRUE' ? badge('TRUE', 'pass') : v === 'FALSE' ? badge('FALSE', 'none') : esc(v);
         kv += '<div class="k">' + esc(h) + '</div><div class="v">' + vv + '</div>';
       });
-      if (kv) out += '<div class="group"><h3>' + esc(gr[0]) + '</h3><div class="kv">' + kv + '</div></div>';
+      if (!kv && !empty.length) return;
+      var note = empty.length ? emptyNote(gr[0], r) : '';
+      out += '<div class="group"><h3>' + esc(gr[0]) + '</h3>' + (note ? '<p class="emptynote">' + esc(note) + '</p>' : '') +
+        (kv ? '<div class="kv">' + kv + '</div>' : '') +
+        (empty.length ? '<p class="empties">' + (note ? 'Empty: ' : 'Without value: ') + empty.map(function (h) { return esc(h.replace(/^ANN\[\*\]\./, '')); }).join(', ') + '</p>' : '') + '</div>';
     });
     var rest = '';
     H.forEach(function (h, i) { if (!used[i] && !SKIP[h]) rest += '<div class="k">' + esc(h) + '</div><div class="v">' + esc(r[i] === undefined ? '' : r[i]) + '</div>'; });
