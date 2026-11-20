@@ -1,0 +1,104 @@
+<tool id="collection_from_table" name="Collection from table" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="24.2">
+    <description>one element per value of column 1, empty elements kept</description>
+    <macros>
+        <token name="@TOOL_VERSION@">5.3.0</token>
+        <token name="@VERSION_SUFFIX@">0</token>
+    </macros>
+    <requirements>
+        <requirement type="package" version="@TOOL_VERSION@">gawk</requirement>
+    </requirements>
+    <version_command>awk --version | head -n 1</version_command>
+    <command detect_errors="exit_code"><![CDATA[
+mkdir out &&
+awk -F'\t' '!seen[\$1]++ { print \$1 }' '$table' > table_ids.txt &&
+#if $identifiers
+    tr -d '\r' < '$identifiers' | grep -v '^\$' > ids.txt &&
+#else
+    cp table_ids.txt ids.txt &&
+#end if
+awk -v FS='\t' -v ext='$ext' -f '$split_script' '$table' ids.txt
+    ]]></command>
+    <configfiles>
+        <configfile name="split_script"><![CDATA[
+# first file: the table, rows collected per value of column 1 (column 1 removed)
+NR == FNR {
+    id = $1
+    sub(/^[^\t]*\t?/, "")
+    rows[id] = rows[id] $0 "\n"
+    next
+}
+# second file: one element per identifier, in this order; no rows gives an empty element
+{
+    i++
+    name = $0
+    gsub(/\//, "_", name)
+    f = sprintf("out/%06d_%s.%s", i, name, ext)
+    printf "%s", rows[$0] > f
+    close(f)
+}
+]]></configfile>
+    </configfiles>
+    <inputs>
+        <param name="table" type="data" format="tabular" label="Table" help="Column 1 is the element identifier, the other columns are written to that element (one line per row)."/>
+        <param name="identifiers" type="data" format="txt" optional="true" label="Element identifiers" help="One identifier per line: the elements of the collection, in this order. An identifier without rows in the table gets an empty element. Without this file the elements follow the first appearance in column 1."/>
+        <param name="ext" type="select" label="Datatype of the elements">
+            <option value="tabular" selected="true">tabular</option>
+            <option value="txt">txt</option>
+            <option value="bed">bed</option>
+        </param>
+    </inputs>
+    <outputs>
+        <collection name="output" type="list" label="${tool.name} on ${on_string}">
+            <discover_datasets pattern="^\d{6}_(?P&lt;designation&gt;.+)\.(?P&lt;ext&gt;[^.]+)$" directory="out" sort_by="filename"/>
+        </collection>
+    </outputs>
+    <tests>
+        <!-- 1: identifiers file sets order, sample without rows gets an empty element -->
+        <test expect_num_outputs="1">
+            <param name="table" value="table.tabular"/>
+            <param name="identifiers" value="ids.txt"/>
+            <output_collection name="output" type="list" count="3">
+                <element name="s2" file="s2.tabular" ftype="tabular"/>
+                <element name="s6">
+                    <assert_contents>
+                        <has_size value="0"/>
+                    </assert_contents>
+                </element>
+                <element name="s1" file="s1.tabular"/>
+            </output_collection>
+        </test>
+        <!-- 2: without identifiers, first appearance order, several rows per element -->
+        <test expect_num_outputs="1">
+            <param name="table" value="table.tabular"/>
+            <param name="ext" value="bed"/>
+            <output_collection name="output" type="list" count="2">
+                <element name="s1" file="s1.tabular" ftype="bed"/>
+                <element name="s2" file="s2.tabular" ftype="bed"/>
+            </output_collection>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Turns a table into a list collection: every row goes to the element named in column 1, without
+that column. With a file of identifiers, the collection has exactly those elements in that order,
+and an identifier that has no row gets an **empty** element, the same as a per-element step that
+produced nothing. Without it, the elements follow the first appearance of each identifier.
+
+Typical use: compute a per-sample result for all samples in one job (one table), then turn it back
+into the per-sample collection that following per-sample tools expect.
+
+**Example**
+
+Table::
+
+    s1  chr19  33792951  33792951
+    s2  chr13  28592642  28592642
+
+Identifiers ``s2``, ``s6``, ``s1`` give the elements s2 (``chr13 28592642 28592642``), s6 (empty)
+and s1 (``chr19 33792951 33792951``).
+    ]]></help>
+    <citations>
+        <citation type="bibtex">@misc{gawk, title = {GNU Awk}, url = {https://www.gnu.org/software/gawk/}}</citation>
+    </citations>
+</tool>

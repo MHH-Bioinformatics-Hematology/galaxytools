@@ -1,0 +1,13 @@
+name: collection_from_table
+owner: mhh-hematology
+categories:
+  - Text Manipulation
+description: Turn a table into a list collection, one element per value of column 1, empty elements kept
+long_description: |
+  Every row goes to the element named in column 1. With a file of identifiers the collection has
+  exactly those elements in that order, and an identifier without rows gets an empty element, as a
+  per-element step that produced nothing would. Lets a workflow compute per-sample results in one job
+  and still hand a per-sample collection to the following tools.
+homepage_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/collection_from_table
+remote_repository_url: https://github.com/MHH-Bioinformatics-Hematology/galaxytools/tree/main/tools/collection_from_table
+type: unrestricted
