@@ -1,7 +1,7 @@
 # MHH Hematology Galaxy tools
 
 Galaxy tool wrappers maintained by the Department of Hematology, Hemostasis,
-Oncology and Stem Cell Transplantation, Hannover Medical School (MHH).
+Oncology, and Cell Therapy, Hannover Medical School (MHH).
 
 This repository works like [galaxyproject/tools-iuc](https://github.com/galaxyproject/tools-iuc).
 
@@ -18,12 +18,47 @@ This repository works like [galaxyproject/tools-iuc](https://github.com/galaxypr
 
 ## Tools
 
+All tools are published on the [Galaxy ToolShed](https://toolshed.g2.bx.psu.edu)
+under the owner `mhh-hematology`.
+
+### Read quality control and preprocessing
+
 | Tool | Description |
 | --- | --- |
-| [falcoamadeus](tools/falcoamadeus) | falcoAmadeus, a faster, sequencing-aware FastQC-compatible QC tool (single and paired-end) |
-| [filt3r](tools/filt3r) | Alignment-free FLT3-ITD detection and quantification from raw reads |
-| [vardictcpp](tools/vardictcpp) | Fast, memory-lean C++ reimplementation of the VarDict variant caller |
-| [cutadapt_demultiplex](tools/cutadapt_demultiplex) | Paired-end combinatorial MID demultiplexing into per-sample read pairs |
+| [falcoamadeus](tools/falcoamadeus) | falcoAmadeus, a faster, sequencing-aware FastQC-compatible quality control tool (single and paired-end) |
+| [cutadapt_demultiplex](tools/cutadapt_demultiplex) | Demultiplexing of paired-end reads into per-sample read pairs by combinatorial MID barcodes |
+
+### Variant calling and read counts
+
+| Tool | Description |
+| --- | --- |
+| [vardictcpp](tools/vardictcpp) | Fast, memory-lean C++ reimplementation of the VarDict variant caller; optionally reports every variant at a position |
+| [filt3r](tools/filt3r) | Alignment-free detection and quantification of FLT3 internal tandem duplications (FLT3-ITD) from raw reads |
+| [bam_readcount](tools/bam_readcount) | BAM Readcount with a built-in reference genome whose precomputed index is reused |
+| [bam_read_accounting](tools/bam_read_accounting) | samtools idxstats, RSeQC bam_stat counts and reads per region from one BAM in one job |
+
+### MRD reports
+
+| Tool | Description |
+| --- | --- |
+| [mrd_html_report](tools/mrd_html_report) | Interactive HTML report of an MRD run, with results per sample and wet-lab quality control |
+| [mrd_samplesheet_report](tools/mrd_samplesheet_report) | HTML page of the MRD sample sheet check: whether the sheet can be used, with instructions per problem |
+
+### Collection utilities
+
+These tools process all elements of a collection in one job instead of one job per element.
+
+| Tool | Description |
+| --- | --- |
+| [collection_awk](tools/collection_awk) | awk over all elements of a collection, with the element identifier as a variable |
+| [collection_filter_lines](tools/collection_filter_lines) | Keep or drop collection elements by their line count or by the content of line N |
+| [collection_from_table](tools/collection_from_table) | List collection from a table, one element per value of column 1; empty elements are kept |
+
+### Real-time PCR
+
+| Tool | Description |
+| --- | --- |
+| [qpcrpredict](tools/qpcrpredict) | Positive and negative calls from raw real-time PCR run files (.eds, .rdml) with a trained model given as input (not shipped with the tool), plus a report tool |
 
 ## One-time setup (do once, in this order)
 
