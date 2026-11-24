@@ -142,6 +142,22 @@ tr.row.sel td { background:rgba(0,113,227,.10); }
   td.why { min-width:12em; } table.st td.why { min-width:14em; }
 }
 @media (max-width:760px) { .p2 { display:none; } body:not(.qcview) .tools button.chip[data-f] { display:none; } }
+/* fitTables(): a table wider than its box first wraps text and numbers (tight), then hides the less important
+   columns (fit3: p3, fit2: p2) and at last shows each row as a card with the column names as labels */
+table.tight td.num, table.tight .cnt, table.tight td.txt { white-space:normal; overflow-wrap:normal; word-break:normal; }
+table.tight td.why { min-width:10em; } table.tight td.mk { min-width:6em; }
+table.fit3 .p3, table.fit2 .p2 { display:none; }
+table.cards, table.cards > tbody, table.cards tr, table.cards td { display:block; }
+table.cards { border:0; }
+table.cards tr.hd, table.cards.noreason td.why { display:none; }
+table.cards tr { border:1px solid var(--border); border-radius:10px; margin:0 0 .6em; padding:.35em 0; }
+table.cards td { border:0; padding:.15em .8em .15em 42%; position:relative; min-height:1.75em; min-width:0; max-width:none; width:auto; text-align:left; white-space:normal; overflow-wrap:anywhere; }
+table.cards td::before {
+  content:attr(data-label); position:absolute; left:.8em; width:calc(42% - 1.6em); color:var(--muted);
+  font:700 .66rem/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-transform:uppercase; letter-spacing:.04em; overflow-wrap:anywhere;
+}
+table.cards td:not([data-label]) { padding-left:.8em; } table.cards td:not([data-label])::before { content:none; }
+table.cards td.why, table.cards td.mk, table.cards td.txt { min-width:0; max-width:none; }
 div.module {
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
   box-shadow:var(--shadow); padding:1.2em 1.6em 1.4em; margin-bottom:1.4em; scroll-margin-top:5em;
@@ -260,7 +276,7 @@ div.summary li a.on { background:var(--surface-2); font-weight:600; }
   font-size:.8rem; max-width:22em; display:none;
 }
 #tip b { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
-.colpick { display:grid; grid-template-columns:repeat(auto-fill,minmax(16em,1fr)); gap:.15em .8em; font-size:.8rem; max-height:16em; overflow-y:auto; border:1px solid var(--border); border-radius:10px; padding:.6em .8em; margin:.4em 0 .8em; }
+.colpick { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(16em,100%),1fr)); gap:.15em .8em; font-size:.8rem; max-height:16em; overflow-y:auto; border:1px solid var(--border); border-radius:10px; padding:.6em .8em; margin:.4em 0 .8em; }
 .colpick label { display:flex; gap:.4em; align-items:center; overflow-wrap:anywhere; }
 button.theme-toggle {
   border:1px solid var(--border); background:var(--surface-2); color:var(--text); border-radius:999px;
@@ -973,7 +989,7 @@ __DATA__
       ' ' + badge(CLS[c], c) + '<span class="sub">' + esc(C_PAT ? g(r, C_PAT) : '') + ' &middot; ' + esc(g(r, 'Primer')) + ' &middot; ' + esc(g(r, 'Transcript')) + ' ' + esc(g(r, 'DNAPosition')) + '</span></h2>' +
       '<div class="nav"><button class="chip" id="pprev" title="Previous sample (arrow up)">&#9650;</button><button class="chip" id="pnext" title="Next sample (arrow down)">&#9660;</button><button class="chip" id="pclose" title="Close (Esc)">&#10005;</button></div></div>' +
       (why.length ? '<ul class="why">' + why.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : '') + detail(r);
-    document.body.classList.add('panelopen');
+    document.body.classList.add('panelopen'); fitTables();
     document.getElementById('panel').scrollTop = 0;
     Array.prototype.forEach.call(document.querySelectorAll('tr.row'), function (tr) { tr.classList.toggle('sel', +tr.dataset.i === i); });
     var tr = document.querySelector('#main div.module:not(.off) tr.row[data-i="' + i + '"]');
@@ -986,7 +1002,7 @@ __DATA__
   function showInfo(html) {
     CUR = -1;
     document.getElementById('panel').innerHTML = html;
-    document.body.classList.add('panelopen');
+    document.body.classList.add('panelopen'); fitTables();
     document.getElementById('panel').scrollTop = 0;
   }
   function sampleRow(i, cells) {
@@ -1051,7 +1067,7 @@ __DATA__
     if (ti && ti.dataset.primer !== undefined) { primerInfo(ti.dataset.primer); return; }
     if (ti && ti.dataset.metric !== undefined) { metricInfo(ti.dataset.metric); return; }
     var h = e.target.closest('div.module > h2');
-    if (h) h.parentNode.classList.toggle('collapsed');
+    if (h) { h.parentNode.classList.toggle('collapsed'); fitTables(); }
   });
   function goSample(i) { openPanel(i); }
 
@@ -1378,7 +1394,36 @@ __DATA__
   }
   var VIEW = 'results';
   function SC() { return SCALE || 1; }   // chart margins follow the font size
-  function drawCharts() { if (VIEW === 'qc' && document.getElementById('c1')) { drawStrip(); drawScatter(); drawFunnel(); drawFam(); drawDist(); drawPrimDots(); } }
+  // ---- every table fits its box, at any window width and font size ------------------------------
+  // Steps until the table is no wider than its box: as designed; text and numbers wrap; the p3, then the p2
+  // columns hidden; each row as a card. The table of all columns is wider than any screen by design and
+  // scrolls inside its box.
+  var FIT = [[], ['tight'], ['tight', 'fit3'], ['tight', 'fit3', 'fit2'], ['cards', 'fit3', 'fit2']];
+  function labelCells(t) {
+    var hr = null;
+    Array.prototype.some.call(t.rows, function (r) { if (r.cells.length && r.cells[0].tagName === 'TH') { hr = r; return true; } return false; });
+    if (!hr || hr.classList.contains('hd')) return;
+    hr.classList.add('hd');
+    var names = Array.prototype.map.call(hr.cells, function (c) { return c.textContent.trim(); });
+    Array.prototype.forEach.call(t.rows, function (r) {
+      if (r === hr || r.cells.length !== names.length) return;
+      Array.prototype.forEach.call(r.cells, function (c, k) { c.setAttribute('data-label', names[k]); });
+    });
+  }
+  function fitTables() {
+    Array.prototype.forEach.call(document.querySelectorAll('table'), function (t) {
+      if (t.closest('#alltable') || !t.offsetParent) return;
+      labelCells(t);
+      var box = t.parentElement;
+      t.classList.remove('tight', 'fit3', 'fit2', 'cards');
+      for (var k = 0; k < FIT.length; k++) {
+        FIT[k].forEach(function (c) { t.classList.add(c); });
+        if (t.offsetWidth <= box.clientWidth + 1 || k === FIT.length - 1) break;
+        FIT[k].forEach(function (c) { t.classList.remove(c); });
+      }
+    });
+  }
+  function drawCharts() { fitTables(); if (VIEW === 'qc' && document.getElementById('c1')) { drawStrip(); drawScatter(); drawFunnel(); drawFam(); drawDist(); drawPrimDots(); } }
   // ---- sections: the centre panel shows only the selected section --------------------------------
   // Results: overview (run overview, all patients) | decision | noqc | corr | all | p<k> (one patient)
   // Wet-lab QC: qcsum (run summary, verdict per sample) | primers | funnel | families | qctable | charts
